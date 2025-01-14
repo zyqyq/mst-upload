@@ -4,17 +4,23 @@ import 'dart:io'; // 添加dart:io库以使用Directory和File类
 import 'dart:convert'; // 添加dart:convert库以使用json.decode和json.encode
 
 class SettingsPage extends StatefulWidget {
+  final Key? key; // 添加: 添加 key 参数
+
+  SettingsPage({this.key}) : super(key: key); // 添加: 传递 key 参数给父类
+
   @override
-  _SettingsPageState createState() => _SettingsPageState();
+  SettingsPageState createState() => SettingsPageState(); // 修改: 返回 SettingsPageState 类型
 }
 
-class _SettingsPageState extends State<SettingsPage> {
+class SettingsPageState extends State<SettingsPage> { // 修改: 将 _SettingsPageState 改为 SettingsPageState
   final TextEditingController _sourceDataPathController = TextEditingController();
   final TextEditingController _conversionProgramPathController = TextEditingController();
   final TextEditingController _uploadProgramPathController = TextEditingController();
   final TextEditingController _databaseAddressController = TextEditingController();
   final TextEditingController _databasePortController = TextEditingController();
   final TextEditingController _databasePasswordController = TextEditingController();
+  final TextEditingController _databaseUsernameController = TextEditingController(); // 添加用户名输入框的控制器
+  final TextEditingController _databaseNameController = TextEditingController(); // 添加数据库名称输入框的控制器
 
   bool _hasUnsavedChanges = false; // 添加标志来跟踪是否有未保存的更改
 
@@ -36,6 +42,8 @@ class _SettingsPageState extends State<SettingsPage> {
         _databaseAddressController.text = settings['databaseAddress'] ?? '';
         _databasePortController.text = settings['databasePort'] ?? '';
         _databasePasswordController.text = settings['databasePassword'] ?? '';
+        _databaseUsernameController.text = settings['databaseUsername'] ?? ''; // 加载用户名
+        _databaseNameController.text = settings['databaseName'] ?? ''; // 加载数据库名称
         _hasUnsavedChanges = false; // 重置标志
       });
     }
@@ -50,6 +58,8 @@ class _SettingsPageState extends State<SettingsPage> {
       'databaseAddress': _databaseAddressController.text,
       'databasePort': _databasePortController.text,
       'databasePassword': _databasePasswordController.text,
+      'databaseUsername': _databaseUsernameController.text, // 保存用户名
+      'databaseName': _databaseNameController.text, // 保存数据库名称
     };
     await file.writeAsString(json.encode(settings));
     setState(() {
@@ -131,6 +141,35 @@ class _SettingsPageState extends State<SettingsPage> {
       },
     );
   }
+
+  Future<bool> showUnsavedChangesDialog() async { // 添加: 显示未保存更改的对话框
+    return await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('未保存更改'),
+          content: Text('您有未保存的更改，是否要保存？'),
+          actions: <Widget>[
+            TextButton(
+              child: Text('取消修改'),
+              onPressed: () {
+                Navigator.of(context).pop(false); // 返回 false 表示不保存更改
+              },
+            ),
+            TextButton(
+              child: Text('确认保存'),
+              onPressed: () {
+                _saveSettings(); // 保存更改
+                Navigator.of(context).pop(true); // 返回 true 表示保存更改
+              },
+            ),
+          ],
+        );
+      },
+    ) ?? false; // 如果用户没有选择任何按钮，则默认返回 false
+  }
+
+  bool get hasUnsavedChanges => _hasUnsavedChanges; // 添加 getter 方法
 
   @override
   Widget build(BuildContext context) {
@@ -259,7 +298,7 @@ class _SettingsPageState extends State<SettingsPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Text('数据库参数', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text('数据库配置', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   SizedBox(height: 8),
                   TextFormField(
                     controller: _databaseAddressController,
@@ -274,6 +313,24 @@ class _SettingsPageState extends State<SettingsPage> {
                     controller: _databasePortController,
                     decoration: InputDecoration(
                       labelText: '端口号',
+                      border: OutlineInputBorder(),
+                    ),
+                    onChanged: (value) => setState(() => _hasUnsavedChanges = true), // 设置标志
+                  ),
+                  SizedBox(height: 8),
+                  TextFormField(
+                    controller: _databaseNameController, // 数据库名称输入框
+                    decoration: InputDecoration(
+                      labelText: '数据库名称',
+                      border: OutlineInputBorder(),
+                    ),
+                    onChanged: (value) => setState(() => _hasUnsavedChanges = true), // 设置标志
+                  ),
+                  SizedBox(height: 8),
+                  TextFormField(
+                    controller: _databaseUsernameController, // 用户名输入框
+                    decoration: InputDecoration(
+                      labelText: '用户名',
                       border: OutlineInputBorder(),
                     ),
                     onChanged: (value) => setState(() => _hasUnsavedChanges = true), // 设置标志
