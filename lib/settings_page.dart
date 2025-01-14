@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart'; // 添加文件选择器库
 import 'dart:io'; // 添加dart:io库以使用Directory和File类
 import 'dart:convert'; // 添加dart:convert库以使用json.decode和json.encode
+import 'package:mysql1/mysql1.dart'; // 添加 mysql1 库以进行数据库连接
 
 class SettingsPage extends StatefulWidget {
   final Key? key; // 添加: 添加 key 参数
@@ -114,12 +115,43 @@ class SettingsPageState extends State<SettingsPage> { // 修改: 将 _SettingsPa
     _saveSettings(); // 保存设置
   }
 
-  void _validateDatabaseParameters() {
-    // 这里可以添加具体的数据库参数校验逻辑
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('数据库参数校验')),
-    );
-    _saveSettings(); // 保存设置
+  Future<bool> _validateDatabaseConnection() async {
+    final String host = _databaseAddressController.text;
+    final int port = int.tryParse(_databasePortController.text) ?? 3306;
+    final String user = _databaseUsernameController.text;
+    final String password = _databasePasswordController.text;
+    final String db = _databaseNameController.text;
+
+    try {
+      final connection = await MySqlConnection.connect(ConnectionSettings(
+        host: host,
+        port: port,
+        user: user,
+        password: password,
+        db: db,
+      ));
+      await connection.close();
+      return true;
+    } catch (e) {
+      if (e is SocketException) {
+        print('数据库连接失败: ${e.message} (OS Error: ${e.osError?.message}, errno = ${e.osError?.errorCode}), address = $host, port = $port');
+      } else {
+        print('数据库连接失败: $e');
+      }
+      return false;
+    }
+  }
+
+  void _validateDatabaseParameters() async {
+    final bool isValid = await _validateDatabaseConnection();
+    if (isValid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('数据库参数有效')),
+      );
+      _saveSettings(); // 保存设置
+    } else {
+      _showErrorDialog('数据库参数无效或连接失败');
+    }
   }
 
   void _showErrorDialog(String message) {
