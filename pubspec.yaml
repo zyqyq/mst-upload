@@ -1,0 +1,10 @@
+name: app  # 请根据实际情况修改为你的项目名称
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  file_picker: ^8.1.7  # 添加file_picker依赖项，并指定版本号
+
