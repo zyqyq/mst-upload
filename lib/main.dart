@@ -37,19 +37,22 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('MST上传'),
-      ),
       body: Row(
         children: <Widget>[
           NavigationRail(
+            extended: true, // 添加: 使侧边栏扩展以显示标题
+            backgroundColor: Theme.of(context).primaryColor.withAlpha((0.3 * 255).toInt()), // 使用主题的主色调并调整透明度
             selectedIndex: _selectedIndex,
             onDestinationSelected: (int index) {
               setState(() {
                 _selectedIndex = index;
               });
             },
-            labelType: NavigationRailLabelType.all,
+            labelType: NavigationRailLabelType.none, // 修改: 将 labelType 设置为 NavigationRailLabelType.none
+            leading: Padding( // 添加: 使用 leading 参数来添加标题
+              padding: const EdgeInsets.all(16.0),
+              child: Text('MST上传', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+            ),
             destinations: [
               NavigationRailDestination(
                 icon: Icon(Icons.file_upload),
@@ -76,6 +79,4 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 }
-
-
 

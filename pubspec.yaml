@@ -8,3 +8,5 @@ dependencies:
     sdk: flutter
   file_picker: ^8.1.7  # 添加file_picker依赖项，并指定版本号
 
+flutter:
+  uses-material-design: true
