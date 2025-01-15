@@ -556,35 +556,39 @@ def draw(data):
 
     return f"{time} {freq}"
 
-if __name__=="__main__":
-    #量化指标相关的初始化
-    count10 = 0;count0 = 0;count = 0;count1 = 0
-    prefactor=0;aftfactor=0
+if __name__ == "__main__":
+    # 量化指标相关的初始化
+    count10 = 0; count0 = 0; count = 0; count1 = 0
+    prefactor = 0; aftfactor = 0
 
-    #文件路径读入
-    # filepath = sys.argv[1]
-    # new_filepath = sys.argv[2]
-
-   
-    filepath = "C:\\Users\\HUAWEI\\Desktop\\L1B"
-    new_folder_path = "C:\\Users\\HUAWEI\\Desktop\\L1BX"
+    # 文件路径读入
+    filepath = r"/Users/zyqyq/Program/数据集/L1B/202408"
+    new_folder_path = r"/Users/zyqyq/Program/数据集/L1BP/202408"
 
     # 记录程序开始时间
     start_time = datetime.now()
 
     for filename1 in os.listdir(filepath): 
+        # 跳过 .DS_Store 文件
+        if filename1 == '.DS_Store':
+            continue
         new_folder_full_path = os.path.join(new_folder_path, filename1)
-        os.mkdir(new_folder_full_path)
+        # 检查目录是否存在，如果不存在则创建
+        if not os.path.exists(new_folder_full_path):
+            os.mkdir(new_folder_full_path)
         for filename2 in os.listdir(os.path.join(filepath, filename1)):
+            # 跳过 .DS_Store 文件
+            if filename2 == '.DS_Store':
+                continue
             file_path = os.path.join(os.path.join(filepath, filename1), filename2)
                 
             # 读取数据
-            original_data,comments= read_data(file_path)
-            count10=len(original_data[:,2])
+            original_data, comments = read_data(file_path)
+            count10 = len(original_data[:, 2])
             factordetect(original_data)
 
             # 校正和处理数据
-            #original_data=correct_DBS(high_height_data, 1.7, 8)
+            # original_data = correct_DBS(high_height_data, 1.7, 8)
             # 分割数据
             heights = original_data[:, 0]
             low_height_mask = heights < 30000
@@ -603,24 +607,22 @@ if __name__=="__main__":
             else:
                 processed_data = processed_low_height_data.copy()
             count0 = len(processed_data)
-            print(count0)
+            print(count0+" ",end="")
             # 保持数据的原始顺序
-            #processed_data = processed_data[np.argsort(heights)]
+            # processed_data = processed_data[np.argsort(heights)]
 
             if processed_data.size == 0:
-                updated_data, aftfactor = [],-1
+                updated_data, aftfactor = [], -1
             else:
                 updated_data, aftfactor = completion(processed_data)
 
-             # 生成新文件名
+            # 生成新文件名
             new_file_name = os.path.splitext(filename2)[0] + '_processed' + os.path.splitext(filename2)[1]
             # 构建新文件路径
-            
             new_file_path = os.path.join(new_folder_full_path, new_file_name)
             # 将处理后的数据写入新文件
             write_data(updated_data, new_file_path, comments)
 
-    
     print(f"Data processing completed.\n New file saved as '{new_folder_path}'")
     # 记录程序结束时间
     end_time = datetime.now()
