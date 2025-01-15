@@ -13,15 +13,16 @@ class SettingsPage extends StatefulWidget {
   SettingsPageState createState() => SettingsPageState(); // 修改: 返回 SettingsPageState 类型
 }
 
-class SettingsPageState extends State<SettingsPage> { // 修改: 将 _SettingsPageState 改为 SettingsPageState
+class SettingsPageState extends State<SettingsPage> {
   final TextEditingController _sourceDataPathController = TextEditingController();
   final TextEditingController _conversionProgramPathController = TextEditingController();
-  final TextEditingController _uploadProgramPathController = TextEditingController();
+  final TextEditingController _syncFrequencyController = TextEditingController(); // 添加同步频率输入框的控制器
   final TextEditingController _databaseAddressController = TextEditingController();
   final TextEditingController _databasePortController = TextEditingController();
   final TextEditingController _databasePasswordController = TextEditingController();
   final TextEditingController _databaseUsernameController = TextEditingController(); // 添加用户名输入框的控制器
   final TextEditingController _databaseNameController = TextEditingController(); // 添加数据库名称输入框的控制器
+  bool _isPasswordVisible = false; // 添加标志来跟踪密码是否可见
 
   bool _hasUnsavedChanges = false; // 添加标志来跟踪是否有未保存的更改
 
@@ -39,7 +40,7 @@ class SettingsPageState extends State<SettingsPage> { // 修改: 将 _SettingsPa
       setState(() {
         _sourceDataPathController.text = settings['sourceDataPath'] ?? '';
         _conversionProgramPathController.text = settings['conversionProgramPath'] ?? '';
-        _uploadProgramPathController.text = settings['uploadProgramPath'] ?? '';
+        _syncFrequencyController.text = settings['syncFrequency'] ?? ''; // 加载同步频率
         _databaseAddressController.text = settings['databaseAddress'] ?? '';
         _databasePortController.text = settings['databasePort'] ?? '';
         _databasePasswordController.text = settings['databasePassword'] ?? '';
@@ -55,7 +56,7 @@ class SettingsPageState extends State<SettingsPage> { // 修改: 将 _SettingsPa
     final settings = {
       'sourceDataPath': _sourceDataPathController.text,
       'conversionProgramPath': _conversionProgramPathController.text,
-      'uploadProgramPath': _uploadProgramPathController.text,
+      'syncFrequency': _syncFrequencyController.text, // 保存同步频率
       'databaseAddress': _databaseAddressController.text,
       'databasePort': _databasePortController.text,
       'databasePassword': _databasePasswordController.text,
@@ -91,7 +92,6 @@ class SettingsPageState extends State<SettingsPage> { // 修改: 将 _SettingsPa
   void _validatePaths() {
     final sourceDataPath = _sourceDataPathController.text;
     final conversionProgramPath = _conversionProgramPathController.text;
-    final uploadProgramPath = _uploadProgramPathController.text;
 
     if (sourceDataPath.isNotEmpty && !Directory(sourceDataPath).existsSync()) {
       _showErrorDialog('源数据地址不是一个有效的文件夹路径');
@@ -100,11 +100,6 @@ class SettingsPageState extends State<SettingsPage> { // 修改: 将 _SettingsPa
 
     if (conversionProgramPath.isNotEmpty && !File(conversionProgramPath).existsSync()) {
       _showErrorDialog('转换程序地址不是一个有效的 .py 文件');
-      return;
-    }
-
-    if (uploadProgramPath.isNotEmpty && !File(uploadProgramPath).existsSync()) {
-      _showErrorDialog('上传程序地址不是一个有效的 .py 文件');
       return;
     }
 
@@ -295,26 +290,18 @@ class SettingsPageState extends State<SettingsPage> { // 修改: 将 _SettingsPa
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Text('上传程序地址', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text('同步频率', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)), // 修改: 同步频率
                   SizedBox(height: 8),
                   Row(
                     children: <Widget>[
                       Expanded(
                         child: TextFormField(
-                          controller: _uploadProgramPathController,
+                          controller: _syncFrequencyController, // 修改: 同步频率控制器
                           decoration: InputDecoration(
-                            labelText: 'Python文件路径',
+                            labelText: 'n分钟一次', // 修改: 后缀解释
                             border: OutlineInputBorder(),
                           ),
                           onChanged: (value) => setState(() => _hasUnsavedChanges = true), // 设置标志
-                        ),
-                      ),
-                      SizedBox(width: 8),
-                      SizedBox(
-                        height: 56, // 设置按钮高度与输入框相同
-                        child: ElevatedButton(
-                          onPressed: () => _selectFile(_uploadProgramPathController),
-                          child: Text('选择文件'),
                         ),
                       ),
                     ],
@@ -373,8 +360,18 @@ class SettingsPageState extends State<SettingsPage> { // 修改: 将 _SettingsPa
                     decoration: InputDecoration(
                       labelText: '密码',
                       border: OutlineInputBorder(),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _isPasswordVisible = !_isPasswordVisible; // 切换密码可见性
+                          });
+                        },
+                      ),
                     ),
-                    obscureText: true,
+                    obscureText: !_isPasswordVisible, // 根据标志决定是否隐藏密码
                     onChanged: (value) => setState(() => _hasUnsavedChanges = true), // 设置标志
                   ),
                   SizedBox(height: 8),
