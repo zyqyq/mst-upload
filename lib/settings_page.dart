@@ -21,7 +21,10 @@ class SettingsPageState extends State<SettingsPage> {
   final TextEditingController _databasePortController = TextEditingController();
   final TextEditingController _databasePasswordController = TextEditingController();
   final TextEditingController _databaseUsernameController = TextEditingController(); // 添加用户名输入框的控制器
-  final TextEditingController _databaseNameController = TextEditingController(); // 添加数据库名称输入框的控制器
+  final TextEditingController _databaseNameController = TextEditingController(); // 添加数据库名称输入框控制器
+  final TextEditingController _showNameController = TextEditingController(); // 新增 show_name 输入框控制器
+  final TextEditingController _platformIdController = TextEditingController(); // 新增 Platform_id 输入框控制器
+  final TextEditingController _nameController = TextEditingController(); // 新增 name 输入框控制器
   bool _isPasswordVisible = false; // 添加标志来跟踪密码是否可见
 
   bool _hasUnsavedChanges = false; // 添加标志来跟踪是否有未保存的更改
@@ -46,6 +49,9 @@ class SettingsPageState extends State<SettingsPage> {
         _databasePasswordController.text = settings['databasePassword'] ?? '';
         _databaseUsernameController.text = settings['databaseUsername'] ?? ''; // 加载用户名
         _databaseNameController.text = settings['databaseName'] ?? ''; // 加载数据库名称
+        _showNameController.text = settings['show_name'] ?? ''; // 加载 show_name
+        _platformIdController.text = settings['Platform_id'] ?? ''; // 加载 Platform_id
+        _nameController.text = settings['name'] ?? ''; // 加载 name
         _hasUnsavedChanges = false; // 重置标志
       });
     }
@@ -62,6 +68,9 @@ class SettingsPageState extends State<SettingsPage> {
       'databasePassword': _databasePasswordController.text,
       'databaseUsername': _databaseUsernameController.text, // 保存用户名
       'databaseName': _databaseNameController.text, // 保存数据库名称
+      'show_name': _showNameController.text, // 保存 show_name
+      'Platform_id': _platformIdController.text, // 保存 Platform_id
+      'name': _nameController.text, // 保存 name
     };
     await file.writeAsString(json.encode(settings));
     setState(() {
@@ -383,6 +392,45 @@ class SettingsPageState extends State<SettingsPage> {
                         child: Text('校验有效性'),
                       ),
                     ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          SizedBox(height: 10), // 添加间距
+          Card(
+            child: Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text('项目配置', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  SizedBox(height: 8),
+                  TextFormField(
+                    controller: _showNameController, // show_name 输入框
+                    decoration: InputDecoration(
+                      labelText: 'show_name',
+                      border: OutlineInputBorder(),
+                    ),
+                    onChanged: (value) => setState(() => _hasUnsavedChanges = true), // 设置标志
+                  ),
+                  SizedBox(height: 8),
+                  TextFormField(
+                    controller: _platformIdController, // Platform_id 输入框
+                    decoration: InputDecoration(
+                      labelText: 'Platform_id',
+                      border: OutlineInputBorder(),
+                    ),
+                    onChanged: (value) => setState(() => _hasUnsavedChanges = true), // 设置标志
+                  ),
+                  SizedBox(height: 8),
+                  TextFormField(
+                    controller: _nameController, // name 输入框
+                    decoration: InputDecoration(
+                      labelText: 'name',
+                      border: OutlineInputBorder(),
+                    ),
+                    onChanged: (value) => setState(() => _hasUnsavedChanges = true), // 设置标志
                   ),
                 ],
               ),
