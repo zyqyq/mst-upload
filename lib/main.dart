@@ -31,22 +31,21 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   int _selectedIndex = 0;
   late final GlobalKey<SettingsPageState> _settingsPageKey;
-  late final GlobalKey<CountdownTextState> _countdownKey; // 添加: 倒计时 GlobalKey
-
-  late final List<Widget> _pages; // 修改: 将 _pages 声明为 late final
-  bool _isPaused = false; // 添加: 暂停标志
+  late final GlobalKey<CountdownTextState> _countdownKey;
+  late final List<Widget> _pages;
+  bool _isPaused = false;
 
   @override
   void initState() {
     super.initState();
     _settingsPageKey = GlobalKey<SettingsPageState>();
-    _countdownKey = GlobalKey<CountdownTextState>(); // 初始化倒计时 GlobalKey
-    _pages = [ // 修改: 在 initState 中初始化 _pages
-      TransferPage(countdownKey: _countdownKey), // 修改: 添加 TransferPage 实例
+    _countdownKey = GlobalKey<CountdownTextState>();
+    _pages = [
+      TransferPage(countdownKey: _countdownKey, onTogglePause: _handleTogglePause), // 修改: 添加回调函数
       HistoryPage(),
       SettingsPage(),
     ];
-    _startSyncTimer(); // 启动同步定时器
+    _startSyncTimer();
   }
 
   // 添加: 读取 setting.json 文件
@@ -81,6 +80,12 @@ class _MyHomePageState extends State<MyHomePage> {
   // 添加: 文件同步方法
   void processFiles() {
     // 文件同步逻辑
+  }
+
+  void _handleTogglePause(bool isPaused) { // 添加: 处理暂停状态的回调函数
+    setState(() {
+      _isPaused = isPaused;
+    });
   }
 
   @override

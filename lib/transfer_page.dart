@@ -6,12 +6,14 @@ import 'package:path/path.dart' as path; // 添加路径处理库
 import 'dart:convert'; // 添加json处理库
 import 'upload_Para.dart'; // 导入 upload_Para.dart 文件
 import 'file_operations.dart'; // 导入 file_operations.dart 文件
+import 'main.dart';
 import 'dart:async'; // 引入 Timer 所需的库
 
 class TransferPage extends StatefulWidget {
-  final GlobalKey<CountdownTextState> countdownKey; // 添加: 接收 CountdownText 小部件的 GlobalKey
+  final GlobalKey<CountdownTextState> countdownKey;
+  final Function(bool) onTogglePause; // 添加: 接收回调函数
 
-  TransferPage({required this.countdownKey}); // 修改: 添加构造函数参数
+  TransferPage({required this.countdownKey, required this.onTogglePause}); // 修改: 添加构造函数参数
 
   @override
   _TransferPageState createState() => _TransferPageState();
@@ -21,7 +23,8 @@ class _TransferPageState extends State<TransferPage> {
   bool _isHovered = false;
   bool _isDatabaseConnected = false;
   late Timer _connectionCheckTimer;
-  String _currentMode = '全局'; // 添加: 初始化 _currentMode
+  String _currentMode = '全局';
+  bool _isPaused = false;
 
   @override
   void initState() {
@@ -114,6 +117,16 @@ class _TransferPageState extends State<TransferPage> {
     );
   }
 
+  void _togglePause() {
+    setState(() {
+      _isPaused = !_isPaused;
+      widget.countdownKey.currentState?.updateRemainingSeconds(
+          widget.countdownKey.currentState!._remainingSeconds); // 更新倒计时显示
+      // 通过回调函数更新 MyHomePage 中的 _isPaused 状态
+      widget.onTogglePause(_isPaused);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<Map<String, dynamic>>(
@@ -135,11 +148,9 @@ class _TransferPageState extends State<TransferPage> {
             title: Text('Transfer Page'),
             actions: <Widget>[
               IconButton(
-                icon: Icon(Icons.pause_circle_filled),
-                onPressed: () {
-                  // 暂停/继续逻辑
-                },
-                tooltip: '暂停/继续',
+                icon: Icon(_isPaused ? Icons.play_circle_filled : Icons.pause_circle_filled), // 修改: 根据 _isPaused 更新图标
+                onPressed: _togglePause,
+                tooltip: _isPaused ? '继续' : '暂停', // 修改: 根据 _isPaused 更新文字
                 mouseCursor: SystemMouseCursors.click,
               ),
               IconButton(
@@ -171,13 +182,15 @@ class _TransferPageState extends State<TransferPage> {
                     child: Column(
                       children: <Widget>[
                         Icon(_isHovered ? Icons.sync : Icons.cloud_upload,
-                            size: 128),
+                          size: 128),
                         SizedBox(height: 16),
                         // 使用 CountdownText 小部件来显示倒计时
-                        CountdownText(
-                          remainingSeconds: 0, // 初始值不重要，因为会通过 GlobalKey 更新
-                          key: widget.countdownKey,
-                        ),
+                        _isHovered
+                            ? Text('单击以立即同步')
+                            : CountdownText(
+                                remainingSeconds: 0, // 初始值不重要，因为会通过 GlobalKey 更新
+                                key: widget.countdownKey,
+                              ),
                       ],
                     ),
                   ),
@@ -296,7 +309,8 @@ class CountdownTextState extends State<CountdownText> {
 
   @override
   Widget build(BuildContext context) {
-    final countdownText = '${_remainingSeconds ~/ 60}:${(_remainingSeconds % 60).toString().padLeft(2, '0')}后执行同步';
+    final countdownText =
+        '${_remainingSeconds ~/ 60}:${(_remainingSeconds % 60).toString().padLeft(2, '0')}后执行同步';
     return Text(countdownText);
   }
 }
