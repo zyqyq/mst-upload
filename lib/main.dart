@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'transfer_page.dart'; // 导入TransferPage
 import 'history_page.dart'; // 导入HistoryPage
 import 'settings_page.dart'; // 导入SettingsPage
+import 'dart:async'; // 添加: 引入 Timer 所需的库
+import 'dart:io'; // 添加: 导入 dart:io 库以使用 File
+import 'dart:convert'; // 添加: 导入 dart:convert 库以使用 json
 
 void main() {
   runApp(MyApp());
@@ -27,21 +30,57 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   int _selectedIndex = 0;
+  late final GlobalKey<SettingsPageState> _settingsPageKey;
+  late final GlobalKey<CountdownTextState> _countdownKey; // 添加: 倒计时 GlobalKey
 
-  // 添加: 为 SettingsPage 添加 GlobalKey
-  late final GlobalKey<SettingsPageState> _settingsPageKey; // 修改: 将 _SettingsPageState 改为 SettingsPageState
-
-  final List<Widget> _pages = [
-    TransferPage(),
-    HistoryPage(),
-    SettingsPage(), // 使用无参数构造函数
-  ];
+  late final List<Widget> _pages; // 修改: 将 _pages 声明为 late final
+  bool _isPaused = false; // 添加: 暂停标志
 
   @override
   void initState() {
     super.initState();
-    _settingsPageKey = GlobalKey<SettingsPageState>(); // 初始化 GlobalKey
-    _pages[2] = SettingsPage(key: _settingsPageKey); // 使用 GlobalKey 更新 _pages 列表中的 SettingsPage
+    _settingsPageKey = GlobalKey<SettingsPageState>();
+    _countdownKey = GlobalKey<CountdownTextState>(); // 初始化倒计时 GlobalKey
+    _pages = [ // 修改: 在 initState 中初始化 _pages
+      TransferPage(countdownKey: _countdownKey), // 修改: 添加 TransferPage 实例
+      HistoryPage(),
+      SettingsPage(),
+    ];
+    _startSyncTimer(); // 启动同步定时器
+  }
+
+  // 添加: 读取 setting.json 文件
+  Future<Map<String, dynamic>> _readSettings() async {
+    final settingsFile = File('settings.json');
+    final settingsContent = await settingsFile.readAsString();
+    return json.decode(settingsContent);
+  }
+
+  void _startSyncTimer() async {
+    final settings = await _readSettings();
+    final syncFrequency = int.parse(settings['syncFrequency'].toString()) ?? 5;
+    int _remainingSeconds = syncFrequency * 60;
+    Timer.periodic(Duration(seconds: 1), (_) {
+      if (!_isPaused && _remainingSeconds > 0) { // 修改: 添加 _isPaused 检查
+        _remainingSeconds--;
+        _countdownKey.currentState?.updateRemainingSeconds(_remainingSeconds);
+      } else if (_remainingSeconds <= 0) {
+        processFileswithTimer();
+        _remainingSeconds = syncFrequency * 60;
+      }
+    });
+  }
+
+  void processFileswithTimer() {
+    // 取消当前同步定时器
+    // 重新启动同步定时器
+    // 执行文件同步操作
+    processFiles();
+  }
+
+  // 添加: 文件同步方法
+  void processFiles() {
+    // 文件同步逻辑
   }
 
   @override
