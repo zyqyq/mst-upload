@@ -15,9 +15,21 @@ class TransferPage extends StatefulWidget {
 
 class _TransferPageState extends State<TransferPage> {
   bool _isHovered = false;
+  bool _isDatabaseConnected = false;
+  late Timer _connectionCheckTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkDatabaseConnection();
+    _connectionCheckTimer = Timer.periodic(Duration(minutes: 1), (_) {
+      _checkDatabaseConnection();
+    });
+  }
 
   @override
   void dispose() {
+    _connectionCheckTimer.cancel();
     super.dispose();
   }
 
@@ -26,6 +38,33 @@ class _TransferPageState extends State<TransferPage> {
     final settingsFile = File('settings.json');
     final settingsContent = await settingsFile.readAsString();
     return json.decode(settingsContent);
+  }
+
+  Future<void> _checkDatabaseConnection() async {
+    final settings = await _readSettings();
+    final dbAddress = settings['databaseAddress'];
+    final dbPort = settings['databasePort'];
+    final dbUser = settings['databaseUsername'];
+    final dbPass = settings['databasePassword'];
+    final dbName = settings['databaseName'];
+
+    try {
+      final conn = await MySqlConnection.connect(ConnectionSettings(
+        host: dbAddress,
+        port: int.parse(dbPort),
+        user: dbUser,
+        password: dbPass,
+        db: dbName,
+      ));
+      await conn.close();
+      setState(() {
+        _isDatabaseConnected = true;
+      });
+    } catch (e) {
+      setState(() {
+        _isDatabaseConnected = false;
+      });
+    }
   }
 
   @override
@@ -76,9 +115,65 @@ class _TransferPageState extends State<TransferPage> {
                 },
               ),
               SizedBox(height: 32),
-              ElevatedButton(
-                onPressed: processFiles,
-                child: Text('传输页面'),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: <Widget>[
+                  Expanded(
+                    child: Card(
+                      child: Padding(
+                        padding: EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Row(
+                              children: <Widget>[
+                                Text('数据库'),
+                                SizedBox(width: 8),
+                                Container(
+                                  width: 10,
+                                  height: 10,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: _isDatabaseConnected ? Colors.green : Colors.red,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            SizedBox(height: 8),
+                            Text('地址: ${settings['databaseAddress']}'),
+                            Text('名称: ${settings['databaseName']}'),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Card(
+                      child: Padding(
+                        padding: EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Text('卡片2'),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Card(
+                      child: Padding(
+                        padding: EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Text('卡片3'),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
