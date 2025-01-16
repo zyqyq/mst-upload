@@ -17,6 +17,11 @@ class _TransferPageState extends State<TransferPage> {
   bool _isHovered = false;
   bool _isDatabaseConnected = false;
   late Timer _connectionCheckTimer;
+  late Timer _syncTimer; // 添加同步定时器
+  int _remainingSeconds = 0; // 添加剩余秒数变量
+
+  // 引入 GlobalKey
+  final GlobalKey<CountdownTextState> _countdownKey = GlobalKey<CountdownTextState>(); // 修正 GlobalKey 类型
 
   @override
   void initState() {
@@ -25,11 +30,13 @@ class _TransferPageState extends State<TransferPage> {
     _connectionCheckTimer = Timer.periodic(Duration(minutes: 1), (_) {
       _checkDatabaseConnection();
     });
+    _startSyncTimer(); // 启动同步定时器
   }
 
   @override
   void dispose() {
     _connectionCheckTimer.cancel();
+    _syncTimer.cancel(); // 取消同步定时器
     super.dispose();
   }
 
@@ -67,6 +74,29 @@ class _TransferPageState extends State<TransferPage> {
     }
   }
 
+  void _startSyncTimer() async {
+    final settings = await _readSettings();
+    final syncFrequency = int.parse(settings['syncFrequency'].toString()) ?? 5; // 将 syncFrequency 转换为 int 类型
+    _remainingSeconds = syncFrequency * 60; // 设置剩余秒数
+    _syncTimer = Timer.periodic(Duration(seconds: 1), (_) {
+      if (_remainingSeconds > 0) {
+        _remainingSeconds--;
+        _countdownKey.currentState?.updateRemainingSeconds(_remainingSeconds); // 更新倒计时
+      } else {
+        processFileswithTimer();
+      }
+    });
+  }
+
+  void processFileswithTimer() {
+    // 取消当前同步定时器
+    _syncTimer.cancel();
+    // 重新启动同步定时器
+    _startSyncTimer();
+    // 执行文件同步操作
+    processFiles();
+  }
+
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<Map<String, dynamic>>(
@@ -90,12 +120,17 @@ class _TransferPageState extends State<TransferPage> {
               MouseRegion(
                 cursor: SystemMouseCursors.click,
                 child: GestureDetector(
-                  onTap: processFiles,
+                  onTap: processFileswithTimer,
                   child: Column(
                     children: <Widget>[
-                      Icon(_isHovered ? Icons.sync : Icons.cloud_upload, size: 128),
+                      Icon(_isHovered ? Icons.sync : Icons.cloud_upload,
+                          size: 128),
                       SizedBox(height: 16),
-                      Text(_isHovered ? '单击立即同步' : '$syncFrequency分钟后再次同步'),
+                      // 使用 CountdownText 小部件来显示倒计时
+                      CountdownText(
+                        remainingSeconds: _remainingSeconds,
+                        key: _countdownKey,
+                      ),
                     ],
                   ),
                 ),
@@ -134,7 +169,9 @@ class _TransferPageState extends State<TransferPage> {
                                   height: 10,
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
-                                    color: _isDatabaseConnected ? Colors.green : Colors.red,
+                                    color: _isDatabaseConnected
+                                        ? Colors.green
+                                        : Colors.red,
                                   ),
                                 ),
                               ],
@@ -180,5 +217,38 @@ class _TransferPageState extends State<TransferPage> {
         );
       },
     );
+  }
+}
+
+// 新增 CountdownText 小部件
+class CountdownText extends StatefulWidget {
+  final int remainingSeconds;
+
+  CountdownText({Key? key, required this.remainingSeconds}) : super(key: key);
+
+  @override
+  CountdownTextState createState() => CountdownTextState();
+}
+
+class CountdownTextState extends State<CountdownText> {
+  late int _remainingSeconds;
+
+  @override
+  void initState() {
+    super.initState();
+    _remainingSeconds = widget.remainingSeconds;
+  }
+
+  // 新增方法来更新剩余秒数
+  void updateRemainingSeconds(int newSeconds) {
+    setState(() {
+      _remainingSeconds = newSeconds;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final countdownText = '${_remainingSeconds ~/ 60}:${(_remainingSeconds % 60).toString().padLeft(2, '0')}后执行同步';
+    return Text(countdownText);
   }
 }
