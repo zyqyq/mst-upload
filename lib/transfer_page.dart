@@ -23,6 +23,8 @@ class _TransferPageState extends State<TransferPage> {
   // 引入 GlobalKey
   final GlobalKey<CountdownTextState> _countdownKey = GlobalKey<CountdownTextState>(); // 修正 GlobalKey 类型
 
+  String _currentMode = '全局'; // 添加模式选择变量
+
   @override
   void initState() {
     super.initState();
@@ -97,6 +99,48 @@ class _TransferPageState extends State<TransferPage> {
     processFiles();
   }
 
+  void _showModeDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('选择模式'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              ListTile(
+                title: Text('全局'),
+                leading: Radio(
+                  value: '全局',
+                  groupValue: _currentMode,
+                  onChanged: (value) {
+                    setState(() {
+                      _currentMode = value!;
+                    });
+                    Navigator.of(context).pop();
+                  },
+                ),
+              ),
+              ListTile(
+                title: Text('顺序'),
+                leading: Radio(
+                  value: '顺序',
+                  groupValue: _currentMode,
+                  onChanged: (value) {
+                    setState(() {
+                      _currentMode = value!;
+                    });
+                    Navigator.of(context).pop();
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<Map<String, dynamic>>(
@@ -113,106 +157,133 @@ class _TransferPageState extends State<TransferPage> {
         final settings = snapshot.data!;
         final syncFrequency = settings['syncFrequency'] ?? 5; // 默认5分钟
 
-        return Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: <Widget>[
-              MouseRegion(
-                cursor: SystemMouseCursors.click,
-                child: GestureDetector(
-                  onTap: processFileswithTimer,
-                  child: Column(
-                    children: <Widget>[
-                      Icon(_isHovered ? Icons.sync : Icons.cloud_upload,
-                          size: 128),
-                      SizedBox(height: 16),
-                      // 使用 CountdownText 小部件来显示倒计时
-                      CountdownText(
-                        remainingSeconds: _remainingSeconds,
-                        key: _countdownKey,
-                      ),
-                    ],
-                  ),
-                ),
-                onEnter: (_) {
-                  if (!_isHovered) {
-                    setState(() {
-                      _isHovered = true;
-                    });
-                  }
-                },
-                onExit: (_) {
-                  if (_isHovered) {
-                    setState(() {
-                      _isHovered = false;
-                    });
-                  }
-                },
+        return Scaffold(
+          appBar: AppBar(
+            title: Text('Transfer Page'),
+            actions: <Widget>[
+              IconButton(
+                icon: Icon(Icons.pause_circle_filled),
+                onPressed: processFileswithTimer,
+                tooltip: '暂停/继续',
+                mouseCursor: SystemMouseCursors.click,
               ),
-              SizedBox(height: 32),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: <Widget>[
-                  Expanded(
-                    child: Card(
-                      child: Padding(
-                        padding: EdgeInsets.all(16.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            Row(
-                              children: <Widget>[
-                                Text('数据库'),
-                                SizedBox(width: 8),
-                                Container(
-                                  width: 10,
-                                  height: 10,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: _isDatabaseConnected
-                                        ? Colors.green
-                                        : Colors.red,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            SizedBox(height: 8),
-                            Text('地址: ${settings['databaseAddress']}'),
-                            Text('名称: ${settings['databaseName']}'),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: Card(
-                      child: Padding(
-                        padding: EdgeInsets.all(16.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            Text('卡片2'),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: Card(
-                      child: Padding(
-                        padding: EdgeInsets.all(16.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            Text('卡片3'),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+              IconButton(
+                icon: Icon(Icons.settings),
+                onPressed: _showModeDialog,
+                tooltip: '模式选择',
+                mouseCursor: SystemMouseCursors.click,
+              ),
+              IconButton(
+                icon: Icon(Icons.info),
+                onPressed: () {
+                  // 详细信息逻辑
+                },
+                tooltip: '详细信息',
+                mouseCursor: SystemMouseCursors.click,
               ),
             ],
+          ),
+          body: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: <Widget>[
+                MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: GestureDetector(
+                    onTap: processFileswithTimer,
+                    child: Column(
+                      children: <Widget>[
+                        Icon(_isHovered ? Icons.sync : Icons.cloud_upload,
+                            size: 128),
+                        SizedBox(height: 16),
+                        // 使用 CountdownText 小部件来显示倒计时
+                        CountdownText(
+                          remainingSeconds: _remainingSeconds,
+                          key: _countdownKey,
+                        ),
+                      ],
+                    ),
+                  ),
+                  onEnter: (_) {
+                    if (!_isHovered) {
+                      setState(() {
+                        _isHovered = true;
+                      });
+                    }
+                  },
+                  onExit: (_) {
+                    if (_isHovered) {
+                      setState(() {
+                        _isHovered = false;
+                      });
+                    }
+                  },
+                ),
+                SizedBox(height: 32),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: <Widget>[
+                    Expanded(
+                      child: Card(
+                        child: Padding(
+                          padding: EdgeInsets.all(16.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Row(
+                                children: <Widget>[
+                                  Text('数据库'),
+                                  SizedBox(width: 8),
+                                  Container(
+                                    width: 10,
+                                    height: 10,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: _isDatabaseConnected
+                                          ? Colors.green
+                                          : Colors.red,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              SizedBox(height: 8),
+                              Text('地址: ${settings['databaseAddress']}'),
+                              Text('名称: ${settings['databaseName']}'),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: Card(
+                        child: Padding(
+                          padding: EdgeInsets.all(16.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Text('卡片2'),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: Card(
+                        child: Padding(
+                          padding: EdgeInsets.all(16.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Text('卡片3'),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         );
       },
