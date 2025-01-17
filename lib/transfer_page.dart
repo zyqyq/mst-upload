@@ -20,17 +20,20 @@ class TransferPage extends StatefulWidget {
 }
 
 class _TransferPageState extends State<TransferPage> {
-  bool _isHovered = false;
-  bool _isDatabaseConnected = false;
+  late ValueNotifier<bool> _isHoveredNotifier;
+  late ValueNotifier<bool> _isDatabaseConnectedNotifier;
+  late ValueNotifier<bool> _isPausedNotifier;
   late Timer _connectionCheckTimer;
   String _currentMode = '全局';
-  bool _isPaused = false;
 
   @override
   void initState() {
     super.initState();
+    _isHoveredNotifier = ValueNotifier<bool>(false);
+    _isDatabaseConnectedNotifier = ValueNotifier<bool>(false);
+    _isPausedNotifier = ValueNotifier<bool>(false);
     _checkDatabaseConnection();
-    _connectionCheckTimer = Timer.periodic(Duration(minutes: 1), (_) {
+    _connectionCheckTimer = Timer.periodic(Duration(seconds: 5), (_) {
       _checkDatabaseConnection();
     });
   }
@@ -38,6 +41,9 @@ class _TransferPageState extends State<TransferPage> {
   @override
   void dispose() {
     _connectionCheckTimer.cancel();
+    _isHoveredNotifier.dispose();
+    _isDatabaseConnectedNotifier.dispose();
+    _isPausedNotifier.dispose();
     super.dispose();
   }
 
@@ -65,13 +71,9 @@ class _TransferPageState extends State<TransferPage> {
         db: dbName,
       ));
       await conn.close();
-      setState(() {
-        _isDatabaseConnected = true;
-      });
+      _isDatabaseConnectedNotifier.value = true;
     } catch (e) {
-      setState(() {
-        _isDatabaseConnected = false;
-      });
+      _isDatabaseConnectedNotifier.value = false;
     }
   }
 
@@ -118,13 +120,10 @@ class _TransferPageState extends State<TransferPage> {
   }
 
   void _togglePause() {
-    setState(() {
-      _isPaused = !_isPaused;
-      widget.countdownKey.currentState?.updateRemainingSeconds(
-          widget.countdownKey.currentState!._remainingSeconds); // 更新倒计时显示
-      // 通过回调函数更新 MyHomePage 中的 _isPaused 状态
-      widget.onTogglePause(_isPaused);
-    });
+    _isPausedNotifier.value = !_isPausedNotifier.value;
+    widget.countdownKey.currentState?.updateRemainingSeconds(
+        widget.countdownKey.currentState!._remainingSecondsNotifier.value); // 修改: 使用公共方法和 ValueNotifier
+    widget.onTogglePause(_isPausedNotifier.value);
   }
 
   @override
@@ -147,11 +146,16 @@ class _TransferPageState extends State<TransferPage> {
           appBar: AppBar(
             title: Text('Transfer Page'),
             actions: <Widget>[
-              IconButton(
-                icon: Icon(_isPaused ? Icons.play_circle_filled : Icons.pause_circle_filled), // 修改: 根据 _isPaused 更新图标
-                onPressed: _togglePause,
-                tooltip: _isPaused ? '继续' : '暂停', // 修改: 根据 _isPaused 更新文字
-                mouseCursor: SystemMouseCursors.click,
+              ValueListenableBuilder<bool>(
+                valueListenable: _isPausedNotifier,
+                builder: (context, isPaused, child) {
+                  return IconButton(
+                    icon: Icon(isPaused ? Icons.play_circle_filled : Icons.pause_circle_filled),
+                    onPressed: _togglePause,
+                    tooltip: isPaused ? '继续' : '暂停',
+                    mouseCursor: SystemMouseCursors.click,
+                  );
+                },
               ),
               IconButton(
                 icon: Icon(Icons.settings),
@@ -181,32 +185,34 @@ class _TransferPageState extends State<TransferPage> {
                     },
                     child: Column(
                       children: <Widget>[
-                        Icon(_isHovered ? Icons.sync : Icons.cloud_upload,
-                          size: 128),
+                        ValueListenableBuilder<bool>(
+                          valueListenable: _isHoveredNotifier,
+                          builder: (context, isHovered, child) {
+                            return Icon(isHovered ? Icons.sync : Icons.cloud_upload,
+                              size: 128);
+                          },
+                        ),
                         SizedBox(height: 16),
                         // 使用 CountdownText 小部件来显示倒计时
-                        _isHovered
-                            ? Text('单击以立即同步')
-                            : CountdownText(
-                                remainingSeconds: 0, // 初始值不重要，因为会通过 GlobalKey 更新
-                                key: widget.countdownKey,
-                              ),
+                        ValueListenableBuilder<bool>(
+                          valueListenable: _isHoveredNotifier,
+                          builder: (context, isHovered, child) {
+                            return isHovered
+                                ? Text('单击以立即同步')
+                                : CountdownText(
+                                    remainingSeconds: 0,
+                                    key: widget.countdownKey,
+                                  );
+                          },
+                        ),
                       ],
                     ),
                   ),
                   onEnter: (_) {
-                    if (!_isHovered) {
-                      setState(() {
-                        _isHovered = true;
-                      });
-                    }
+                    _isHoveredNotifier.value = true;
                   },
                   onExit: (_) {
-                    if (_isHovered) {
-                      setState(() {
-                        _isHovered = false;
-                      });
-                    }
+                    _isHoveredNotifier.value = false;
                   },
                 ),
                 SizedBox(height: 32),
@@ -220,21 +226,24 @@ class _TransferPageState extends State<TransferPage> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: <Widget>[
-                              Row(
-                                children: <Widget>[
-                                  Text('数据库'),
-                                  SizedBox(width: 8),
-                                  Container(
-                                    width: 10,
-                                    height: 10,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: _isDatabaseConnected
-                                          ? Colors.green
-                                          : Colors.red,
-                                    ),
-                                  ),
-                                ],
+                              ValueListenableBuilder<bool>(
+                                valueListenable: _isDatabaseConnectedNotifier,
+                                builder: (context, isConnected, child) {
+                                  return Row(
+                                    children: <Widget>[
+                                      Text('数据库'),
+                                      SizedBox(width: 8),
+                                      Container(
+                                        width: 10,
+                                        height: 10,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          color: isConnected ? Colors.green : Colors.red,
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                },
                               ),
                               SizedBox(height: 8),
                               Text('地址: ${settings['databaseAddress']}'),
@@ -292,25 +301,34 @@ class CountdownText extends StatefulWidget {
 }
 
 class CountdownTextState extends State<CountdownText> {
-  late int _remainingSeconds;
+  late ValueNotifier<int> _remainingSecondsNotifier;
 
   @override
   void initState() {
     super.initState();
-    _remainingSeconds = widget.remainingSeconds;
+    _remainingSecondsNotifier = ValueNotifier<int>(widget.remainingSeconds);
+  }
+
+  @override
+  void dispose() {
+    _remainingSecondsNotifier.dispose();
+    super.dispose();
   }
 
   // 新增方法来更新剩余秒数
   void updateRemainingSeconds(int newSeconds) {
-    setState(() {
-      _remainingSeconds = newSeconds;
-    });
+    _remainingSecondsNotifier.value = newSeconds;
   }
 
   @override
   Widget build(BuildContext context) {
-    final countdownText =
-        '${_remainingSeconds ~/ 60}:${(_remainingSeconds % 60).toString().padLeft(2, '0')}后执行同步';
-    return Text(countdownText);
+    return ValueListenableBuilder<int>(
+      valueListenable: _remainingSecondsNotifier,
+      builder: (context, remainingSeconds, child) {
+        final countdownText =
+            '${remainingSeconds ~/ 60}:${(remainingSeconds % 60).toString().padLeft(2, '0')}后执行同步';
+        return Text(countdownText);
+      },
+    );
   }
 }
