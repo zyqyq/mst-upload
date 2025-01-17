@@ -10,10 +10,10 @@ import 'main.dart';
 import 'dart:async'; // 引入 Timer 所需的库
 
 class TransferPage extends StatefulWidget {
-  final GlobalKey<CountdownTextState> countdownKey;
+  final ValueNotifier<int> countdownNotifier; // 修改: 使用 ValueNotifier<int>
   final Function(bool) onTogglePause; // 添加: 接收回调函数
 
-  TransferPage({required this.countdownKey, required this.onTogglePause}); // 修改: 添加构造函数参数
+  TransferPage({required this.countdownNotifier, required this.onTogglePause}); // 修改: 添加构造函数参数
 
   @override
   _TransferPageState createState() => _TransferPageState();
@@ -121,8 +121,7 @@ class _TransferPageState extends State<TransferPage> {
 
   void _togglePause() {
     _isPausedNotifier.value = !_isPausedNotifier.value;
-    widget.countdownKey.currentState?.updateRemainingSeconds(
-        widget.countdownKey.currentState!._remainingSecondsNotifier.value); // 修改: 使用公共方法和 ValueNotifier
+    widget.countdownNotifier.value = widget.countdownNotifier.value; // 修改: 使用 ValueNotifier
     widget.onTogglePause(_isPausedNotifier.value);
   }
 
@@ -200,8 +199,7 @@ class _TransferPageState extends State<TransferPage> {
                             return isHovered
                                 ? Text('单击以立即同步')
                                 : CountdownText(
-                                    remainingSeconds: 0,
-                                    key: widget.countdownKey,
+                                    countdownNotifier: widget.countdownNotifier, // 修改: 使用 ValueNotifier
                                   );
                           },
                         ),
@@ -292,9 +290,9 @@ class _TransferPageState extends State<TransferPage> {
 
 // 新增 CountdownText 小部件
 class CountdownText extends StatefulWidget {
-  final int remainingSeconds;
+  final ValueNotifier<int> countdownNotifier; // 修改: 使用 ValueNotifier<int>
 
-  CountdownText({Key? key, required this.remainingSeconds}) : super(key: key);
+  CountdownText({Key? key, required this.countdownNotifier}) : super(key: key); // 修改: 使用 ValueNotifier
 
   @override
   CountdownTextState createState() => CountdownTextState();
@@ -306,18 +304,20 @@ class CountdownTextState extends State<CountdownText> {
   @override
   void initState() {
     super.initState();
-    _remainingSecondsNotifier = ValueNotifier<int>(widget.remainingSeconds);
+    _remainingSecondsNotifier = ValueNotifier<int>(widget.countdownNotifier.value); // 修改: 初始化 ValueNotifier
+    widget.countdownNotifier.addListener(_updateRemainingSeconds); // 添加: 添加监听器
   }
 
   @override
   void dispose() {
+    widget.countdownNotifier.removeListener(_updateRemainingSeconds); // 添加: 移除监听器
     _remainingSecondsNotifier.dispose();
     super.dispose();
   }
 
   // 新增方法来更新剩余秒数
-  void updateRemainingSeconds(int newSeconds) {
-    _remainingSecondsNotifier.value = newSeconds;
+  void _updateRemainingSeconds() {
+    _remainingSecondsNotifier.value = widget.countdownNotifier.value;
   }
 
   @override

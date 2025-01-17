@@ -31,7 +31,7 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   int _selectedIndex = 0;
   late final GlobalKey<SettingsPageState> _settingsPageKey;
-  late final GlobalKey<CountdownTextState> _countdownKey;
+  late final ValueNotifier<int> _countdownNotifier; // 修改: 使用 ValueNotifier<int>
   late final List<Widget> _pages;
   bool _isPaused = false;
 
@@ -39,9 +39,9 @@ class _MyHomePageState extends State<MyHomePage> {
   void initState() {
     super.initState();
     _settingsPageKey = GlobalKey<SettingsPageState>();
-    _countdownKey = GlobalKey<CountdownTextState>();
+    _countdownNotifier = ValueNotifier<int>(0); // 修改: 初始化 ValueNotifier
     _pages = [
-      TransferPage(countdownKey: _countdownKey, onTogglePause: _handleTogglePause), // 修改: 添加回调函数
+      TransferPage(countdownNotifier: _countdownNotifier, onTogglePause: _handleTogglePause), // 修改: 使用 ValueNotifier
       HistoryPage(),
       SettingsPage(),
     ];
@@ -59,13 +59,15 @@ class _MyHomePageState extends State<MyHomePage> {
     final settings = await _readSettings();
     final syncFrequency = int.parse(settings['syncFrequency'].toString()) ?? 5;
     int _remainingSeconds = syncFrequency * 60;
+    _countdownNotifier.value = _remainingSeconds; // 修改: 初始化倒计时
     Timer.periodic(Duration(seconds: 1), (_) {
       if (!_isPaused && _remainingSeconds > 0) { // 修改: 添加 _isPaused 检查
         _remainingSeconds--;
-        _countdownKey.currentState?.updateRemainingSeconds(_remainingSeconds);
+        _countdownNotifier.value = _remainingSeconds; // 修改: 更新 ValueNotifier
       } else if (_remainingSeconds <= 0) {
         processFileswithTimer();
         _remainingSeconds = syncFrequency * 60;
+        _countdownNotifier.value = _remainingSeconds; // 修改: 重置 ValueNotifier
       }
     });
   }
