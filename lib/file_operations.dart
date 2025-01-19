@@ -84,21 +84,21 @@ Future<bool> _isDuplicateRecord(MySqlConnection conn, String filePath,
   final MST = MSTStr == 'M' ? 0 : 1;
 
   final checkSql = '''
-    SELECT COUNT(*) 
+  SELECT EXISTS(
+    SELECT 1 
     FROM smos_radar_qzgcz_device2 
     WHERE Time = ? 
       AND name = ? 
       AND MST = ? 
       AND Platform_id = ?
-  ''';
-  final checkResult = await conn.query(checkSql, [
-    dtStr,
-    name,
-    MST,
-    platformId,
-  ]);
-
-  // 检查是否存在相同的记录
-  final count = checkResult.first[0] as int? ?? 0; // 确保不会出现 null
-  return count > 0;
+  )
+''';
+  try {
+    final checkResult = await conn.query(checkSql, [dtStr, name, MST, platformId]);
+    final exists = checkResult.first[0] == 1; // 确保返回值是布尔类型
+    return exists; // 显式转换为 bool
+  } catch (e) {
+    print('查询过程中发生错误: $e');
+    return false; // 或者根据具体需求处理异常
+  }
 }

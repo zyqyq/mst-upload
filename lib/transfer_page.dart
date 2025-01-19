@@ -13,7 +13,9 @@ class TransferPage extends StatefulWidget {
   final ValueNotifier<int> countdownNotifier; // 修改: 使用 ValueNotifier<int>
   final Function(bool) onTogglePause; // 添加: 接收回调函数
 
-  TransferPage({required this.countdownNotifier, required this.onTogglePause}); // 修改: 添加构造函数参数
+  TransferPage(
+      {required this.countdownNotifier,
+      required this.onTogglePause}); // 修改: 添加构造函数参数
 
   @override
   _TransferPageState createState() => _TransferPageState();
@@ -121,7 +123,8 @@ class _TransferPageState extends State<TransferPage> {
 
   void _togglePause() {
     _isPausedNotifier.value = !_isPausedNotifier.value;
-    widget.countdownNotifier.value = widget.countdownNotifier.value; // 修改: 使用 ValueNotifier
+    widget.countdownNotifier.value =
+        widget.countdownNotifier.value; // 修改: 使用 ValueNotifier
     widget.onTogglePause(_isPausedNotifier.value);
   }
 
@@ -149,7 +152,9 @@ class _TransferPageState extends State<TransferPage> {
                 valueListenable: _isPausedNotifier,
                 builder: (context, isPaused, child) {
                   return IconButton(
-                    icon: Icon(isPaused ? Icons.play_circle_filled : Icons.pause_circle_filled),
+                    icon: Icon(isPaused
+                        ? Icons.play_circle_filled
+                        : Icons.pause_circle_filled),
                     onPressed: _togglePause,
                     tooltip: isPaused ? '继续' : '暂停',
                     mouseCursor: SystemMouseCursors.click,
@@ -180,15 +185,16 @@ class _TransferPageState extends State<TransferPage> {
                   cursor: SystemMouseCursors.click,
                   child: GestureDetector(
                     onTap: () {
-                      // 同步逻辑
+                      processFiles();
                     },
                     child: Column(
                       children: <Widget>[
                         ValueListenableBuilder<bool>(
                           valueListenable: _isHoveredNotifier,
                           builder: (context, isHovered, child) {
-                            return Icon(isHovered ? Icons.sync : Icons.cloud_upload,
-                              size: 128);
+                            return Icon(
+                                isHovered ? Icons.sync : Icons.cloud_upload,
+                                size: 128);
                           },
                         ),
                         SizedBox(height: 16),
@@ -199,7 +205,8 @@ class _TransferPageState extends State<TransferPage> {
                             return isHovered
                                 ? Text('单击以立即同步')
                                 : CountdownText(
-                                    countdownNotifier: widget.countdownNotifier, // 修改: 使用 ValueNotifier
+                                    countdownNotifier: widget
+                                        .countdownNotifier, // 修改: 使用 ValueNotifier
                                   );
                           },
                         ),
@@ -236,7 +243,9 @@ class _TransferPageState extends State<TransferPage> {
                                         height: 10,
                                         decoration: BoxDecoration(
                                           shape: BoxShape.circle,
-                                          color: isConnected ? Colors.green : Colors.red,
+                                          color: isConnected
+                                              ? Colors.green
+                                              : Colors.red,
                                         ),
                                       ),
                                     ],
@@ -292,7 +301,8 @@ class _TransferPageState extends State<TransferPage> {
 class CountdownText extends StatefulWidget {
   final ValueNotifier<int> countdownNotifier; // 修改: 使用 ValueNotifier<int>
 
-  CountdownText({Key? key, required this.countdownNotifier}) : super(key: key); // 修改: 使用 ValueNotifier
+  CountdownText({Key? key, required this.countdownNotifier})
+      : super(key: key); // 修改: 使用 ValueNotifier
 
   @override
   CountdownTextState createState() => CountdownTextState();
@@ -304,13 +314,15 @@ class CountdownTextState extends State<CountdownText> {
   @override
   void initState() {
     super.initState();
-    _remainingSecondsNotifier = ValueNotifier<int>(widget.countdownNotifier.value); // 修改: 初始化 ValueNotifier
+    _remainingSecondsNotifier = ValueNotifier<int>(
+        widget.countdownNotifier.value); // 修改: 初始化 ValueNotifier
     widget.countdownNotifier.addListener(_updateRemainingSeconds); // 添加: 添加监听器
   }
 
   @override
   void dispose() {
-    widget.countdownNotifier.removeListener(_updateRemainingSeconds); // 添加: 移除监听器
+    widget.countdownNotifier
+        .removeListener(_updateRemainingSeconds); // 添加: 移除监听器
     _remainingSecondsNotifier.dispose();
     super.dispose();
   }

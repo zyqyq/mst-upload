@@ -5,6 +5,7 @@ import 'settings_page.dart'; // 导入SettingsPage
 import 'dart:async'; // 添加: 引入 Timer 所需的库
 import 'dart:io'; // 添加: 导入 dart:io 库以使用 File
 import 'dart:convert'; // 添加: 导入 dart:convert 库以使用 json
+import 'file_operations.dart';
 
 void main() {
   runApp(MyApp());
@@ -82,15 +83,8 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   void processFileswithTimer() {
-    // 取消当前同步定时器
-    // 重新启动同步定时器
     // 执行文件同步操作
     processFiles();
-  }
-
-  // 添加: 文件同步方法
-  void processFiles() {
-    // 文件同步逻辑
   }
 
   void _handleTogglePause(bool isPaused) {
