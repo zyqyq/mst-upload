@@ -3,28 +3,43 @@ import 'package:file_picker/file_picker.dart'; // 添加文件选择器库
 import 'dart:io'; // 添加dart:io库以使用Directory和File类
 import 'dart:convert'; // 添加dart:convert库以使用json.decode和json.encode
 import 'package:mysql1/mysql1.dart'; // 添加 mysql1 库以进行数据库连接
+//import 'main.dart';
 
 class SettingsPage extends StatefulWidget {
-  final Key? key; // 添加: 添加 key 参数
+  final VoidCallback onSettingsSaved; // 添加: 添加 onSettingsSaved 回调函数
+  final GlobalKey<SettingsPageState> settingsPageKey; // 添加: 添加 GlobalKey
 
-  SettingsPage({this.key}) : super(key: key); // 添加: 传递 key 参数给父类
+  SettingsPage({
+      required this.settingsPageKey,
+      required this.onSettingsSaved,
+    }); // 添加: 传递 GlobalKey 参数
 
   @override
-  SettingsPageState createState() => SettingsPageState(); // 修改: 返回 SettingsPageState 类型
+  SettingsPageState createState() => SettingsPageState();
 }
 
 class SettingsPageState extends State<SettingsPage> {
-  final TextEditingController _sourceDataPathController = TextEditingController();
-  final TextEditingController _conversionProgramPathController = TextEditingController();
-  final TextEditingController _syncFrequencyController = TextEditingController(); // 添加同步频率输入框的控制器
-  final TextEditingController _databaseAddressController = TextEditingController();
+  final TextEditingController _sourceDataPathController =
+      TextEditingController();
+  final TextEditingController _conversionProgramPathController =
+      TextEditingController();
+  final TextEditingController _syncFrequencyController =
+      TextEditingController(); // 添加同步频率输入框的控制器
+  final TextEditingController _databaseAddressController =
+      TextEditingController();
   final TextEditingController _databasePortController = TextEditingController();
-  final TextEditingController _databasePasswordController = TextEditingController();
-  final TextEditingController _databaseUsernameController = TextEditingController(); // 添加用户名输入框的控制器
-  final TextEditingController _databaseNameController = TextEditingController(); // 添加数据库名称输入框控制器
-  final TextEditingController _showNameController = TextEditingController(); // 新增 show_name 输入框控制器
-  final TextEditingController _platformIdController = TextEditingController(); // 新增 Platform_id 输入框控制器
-  final TextEditingController _nameController = TextEditingController(); // 新增 name 输入框控制器
+  final TextEditingController _databasePasswordController =
+      TextEditingController();
+  final TextEditingController _databaseUsernameController =
+      TextEditingController(); // 添加用户名输入框的控制器
+  final TextEditingController _databaseNameController =
+      TextEditingController(); // 添加数据库名称输入框控制器
+  final TextEditingController _showNameController =
+      TextEditingController(); // 新增 show_name 输入框控制器
+  final TextEditingController _platformIdController =
+      TextEditingController(); // 新增 Platform_id 输入框控制器
+  final TextEditingController _nameController =
+      TextEditingController(); // 新增 name 输入框控制器
   bool _isPasswordVisible = false; // 添加标志来跟踪密码是否可见
 
   bool _hasUnsavedChanges = false; // 添加标志来跟踪是否有未保存的更改
@@ -42,15 +57,20 @@ class SettingsPageState extends State<SettingsPage> {
       final Map<String, dynamic> settings = json.decode(contents);
       setState(() {
         _sourceDataPathController.text = settings['sourceDataPath'] ?? '';
-        _conversionProgramPathController.text = settings['conversionProgramPath'] ?? '';
-        _syncFrequencyController.text = settings['syncFrequency'] ?? ''; // 加载同步频率
+        _conversionProgramPathController.text =
+            settings['conversionProgramPath'] ?? '';
+        _syncFrequencyController.text =
+            settings['syncFrequency'] ?? ''; // 加载同步频率
         _databaseAddressController.text = settings['databaseAddress'] ?? '';
         _databasePortController.text = settings['databasePort'] ?? '';
         _databasePasswordController.text = settings['databasePassword'] ?? '';
-        _databaseUsernameController.text = settings['databaseUsername'] ?? ''; // 加载用户名
-        _databaseNameController.text = settings['databaseName'] ?? ''; // 加载数据库名称
+        _databaseUsernameController.text =
+            settings['databaseUsername'] ?? ''; // 加载用户名
+        _databaseNameController.text =
+            settings['databaseName'] ?? ''; // 加载数据库名称
         _showNameController.text = settings['show_name'] ?? ''; // 加载 show_name
-        _platformIdController.text = settings['Platform_id'] ?? ''; // 加载 Platform_id
+        _platformIdController.text =
+            settings['Platform_id'] ?? ''; // 加载 Platform_id
         _nameController.text = settings['name'] ?? ''; // 加载 name
         _hasUnsavedChanges = false; // 重置标志
       });
@@ -72,6 +92,16 @@ class SettingsPageState extends State<SettingsPage> {
       'Platform_id': _platformIdController.text, // 保存 Platform_id
       'name': _nameController.text, // 保存 name
     };
+
+    // 读取旧的同步频率
+    final oldSettings = await _readSettings();
+    final oldSyncFrequency = int.parse(oldSettings['syncFrequency'].toString());
+
+    // 检查同步频率是否发生变化
+    if (oldSyncFrequency != int.parse(_syncFrequencyController.text)) {
+      widget.onSettingsSaved(); // 调用回调函数通知 MyHomePage
+    }
+
     await file.writeAsString(json.encode(settings));
     setState(() {
       _hasUnsavedChanges = false; // 重置标志
@@ -89,7 +119,8 @@ class SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _selectFile(TextEditingController controller) async {
-    final result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['py']);
+    final result = await FilePicker.platform
+        .pickFiles(type: FileType.custom, allowedExtensions: ['py']);
     if (result != null && result.files.isNotEmpty) {
       setState(() {
         controller.text = result.files.first.path!;
@@ -107,7 +138,8 @@ class SettingsPageState extends State<SettingsPage> {
       return;
     }
 
-    if (conversionProgramPath.isNotEmpty && !File(conversionProgramPath).existsSync()) {
+    if (conversionProgramPath.isNotEmpty &&
+        !File(conversionProgramPath).existsSync()) {
       _showErrorDialog('转换程序地址不是一个有效的 .py 文件');
       return;
     }
@@ -120,6 +152,7 @@ class SettingsPageState extends State<SettingsPage> {
   }
 
   Future<bool> _validateDatabaseConnection() async {
+    //数据库连接检查-功能
     final String host = _databaseAddressController.text;
     final int port = int.tryParse(_databasePortController.text) ?? 3306;
     final String user = _databaseUsernameController.text;
@@ -138,7 +171,8 @@ class SettingsPageState extends State<SettingsPage> {
       return true;
     } catch (e) {
       if (e is SocketException) {
-        print('数据库连接失败: ${e.message} (OS Error: ${e.osError?.message}, errno = ${e.osError?.errorCode}), address = $host, port = $port');
+        print(
+            '数据库连接失败: ${e.message} (OS Error: ${e.osError?.message}, errno = ${e.osError?.errorCode}), address = $host, port = $port');
       } else {
         print('数据库连接失败: $e');
       }
@@ -147,6 +181,7 @@ class SettingsPageState extends State<SettingsPage> {
   }
 
   void _validateDatabaseParameters() async {
+    //数据库连接检查-交互
     final bool isValid = await _validateDatabaseConnection();
     if (isValid) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -178,31 +213,33 @@ class SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  Future<bool> showUnsavedChangesDialog() async { // 添加: 显示未保存更改的对话框
+  Future<bool> showUnsavedChangesDialog() async {
+    // 添加: 显示未保存更改的对话框
     return await showDialog<bool>(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text('未保存更改'),
-          content: Text('您有未保存的更改，是否要保存？'),
-          actions: <Widget>[
-            TextButton(
-              child: Text('取消修改'),
-              onPressed: () {
-                Navigator.of(context).pop(false); // 返回 false 表示不保存更改
-              },
-            ),
-            TextButton(
-              child: Text('确认保存'),
-              onPressed: () {
-                _saveSettings(); // 保存更改
-                Navigator.of(context).pop(true); // 返回 true 表示保存更改
-              },
-            ),
-          ],
-        );
-      },
-    ) ?? false; // 如果用户没有选择任何按钮，则默认返回 false
+          context: context,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: Text('未保存更改'),
+              content: Text('您有未保存的更改，是否要保存？'),
+              actions: <Widget>[
+                TextButton(
+                  child: Text('取消修改'),
+                  onPressed: () {
+                    Navigator.of(context).pop(false); // 返回 false 表示不保存更改
+                  },
+                ),
+                TextButton(
+                  child: Text('确认保存'),
+                  onPressed: () {
+                    _saveSettings(); // 保存更改
+                    Navigator.of(context).pop(true); // 返回 true 表示保存更改
+                  },
+                ),
+              ],
+            );
+          },
+        ) ??
+        false; // 如果用户没有选择任何按钮，则默认返回 false
   }
 
   bool get hasUnsavedChanges => _hasUnsavedChanges; // 添加 getter 方法
@@ -229,7 +266,9 @@ class SettingsPageState extends State<SettingsPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Text('源数据地址', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text('源数据地址',
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   SizedBox(height: 8),
                   Row(
                     children: <Widget>[
@@ -240,14 +279,16 @@ class SettingsPageState extends State<SettingsPage> {
                             labelText: '文件夹路径',
                             border: OutlineInputBorder(),
                           ),
-                          onChanged: (value) => setState(() => _hasUnsavedChanges = true), // 设置标志
+                          onChanged: (value) =>
+                              setState(() => _hasUnsavedChanges = true), // 设置标志
                         ),
                       ),
                       SizedBox(width: 8),
                       SizedBox(
                         height: 56, // 设置按钮高度与输入框相同
                         child: ElevatedButton(
-                          onPressed: () => _selectFolder(_sourceDataPathController),
+                          onPressed: () =>
+                              _selectFolder(_sourceDataPathController),
                           child: Text('选择文件夹'),
                         ),
                       ),
@@ -264,7 +305,9 @@ class SettingsPageState extends State<SettingsPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Text('转换程序地址', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text('转换程序地址',
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   SizedBox(height: 8),
                   Row(
                     children: <Widget>[
@@ -275,14 +318,16 @@ class SettingsPageState extends State<SettingsPage> {
                             labelText: 'Python文件路径',
                             border: OutlineInputBorder(),
                           ),
-                          onChanged: (value) => setState(() => _hasUnsavedChanges = true), // 设置标志
+                          onChanged: (value) =>
+                              setState(() => _hasUnsavedChanges = true), // 设置标志
                         ),
                       ),
                       SizedBox(width: 8),
                       SizedBox(
                         height: 56, // 设置按钮高度与输入框相同
                         child: ElevatedButton(
-                          onPressed: () => _selectFile(_conversionProgramPathController),
+                          onPressed: () =>
+                              _selectFile(_conversionProgramPathController),
                           child: Text('选择文件'),
                         ),
                       ),
@@ -299,7 +344,10 @@ class SettingsPageState extends State<SettingsPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Text('同步频率', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)), // 修改: 同步频率
+                  Text('同步频率',
+                      style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold)), // 修改: 同步频率
                   SizedBox(height: 8),
                   Row(
                     children: <Widget>[
@@ -310,7 +358,8 @@ class SettingsPageState extends State<SettingsPage> {
                             labelText: 'n分钟一次', // 修改: 后缀解释
                             border: OutlineInputBorder(),
                           ),
-                          onChanged: (value) => setState(() => _hasUnsavedChanges = true), // 设置标志
+                          onChanged: (value) =>
+                              setState(() => _hasUnsavedChanges = true), // 设置标志
                         ),
                       ),
                     ],
@@ -326,7 +375,9 @@ class SettingsPageState extends State<SettingsPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Text('数据库配置', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text('数据库配置',
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   SizedBox(height: 8),
                   TextFormField(
                     controller: _databaseAddressController,
@@ -334,7 +385,8 @@ class SettingsPageState extends State<SettingsPage> {
                       labelText: '数据库地址',
                       border: OutlineInputBorder(),
                     ),
-                    onChanged: (value) => setState(() => _hasUnsavedChanges = true), // 设置标志
+                    onChanged: (value) =>
+                        setState(() => _hasUnsavedChanges = true), // 设置标志
                   ),
                   SizedBox(height: 8),
                   TextFormField(
@@ -343,7 +395,8 @@ class SettingsPageState extends State<SettingsPage> {
                       labelText: '端口号',
                       border: OutlineInputBorder(),
                     ),
-                    onChanged: (value) => setState(() => _hasUnsavedChanges = true), // 设置标志
+                    onChanged: (value) =>
+                        setState(() => _hasUnsavedChanges = true), // 设置标志
                   ),
                   SizedBox(height: 8),
                   TextFormField(
@@ -352,7 +405,8 @@ class SettingsPageState extends State<SettingsPage> {
                       labelText: '数据库名称',
                       border: OutlineInputBorder(),
                     ),
-                    onChanged: (value) => setState(() => _hasUnsavedChanges = true), // 设置标志
+                    onChanged: (value) =>
+                        setState(() => _hasUnsavedChanges = true), // 设置标志
                   ),
                   SizedBox(height: 8),
                   TextFormField(
@@ -361,7 +415,8 @@ class SettingsPageState extends State<SettingsPage> {
                       labelText: '用户名',
                       border: OutlineInputBorder(),
                     ),
-                    onChanged: (value) => setState(() => _hasUnsavedChanges = true), // 设置标志
+                    onChanged: (value) =>
+                        setState(() => _hasUnsavedChanges = true), // 设置标志
                   ),
                   SizedBox(height: 8),
                   TextFormField(
@@ -371,7 +426,9 @@ class SettingsPageState extends State<SettingsPage> {
                       border: OutlineInputBorder(),
                       suffixIcon: IconButton(
                         icon: Icon(
-                          _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
+                          _isPasswordVisible
+                              ? Icons.visibility
+                              : Icons.visibility_off,
                         ),
                         onPressed: () {
                           setState(() {
@@ -381,7 +438,8 @@ class SettingsPageState extends State<SettingsPage> {
                       ),
                     ),
                     obscureText: !_isPasswordVisible, // 根据标志决定是否隐藏密码
-                    onChanged: (value) => setState(() => _hasUnsavedChanges = true), // 设置标志
+                    onChanged: (value) =>
+                        setState(() => _hasUnsavedChanges = true), // 设置标志
                   ),
                   SizedBox(height: 8),
                   Row(
@@ -404,7 +462,9 @@ class SettingsPageState extends State<SettingsPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Text('项目配置', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text('项目配置',
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   SizedBox(height: 8),
                   TextFormField(
                     controller: _showNameController, // show_name 输入框
@@ -412,7 +472,8 @@ class SettingsPageState extends State<SettingsPage> {
                       labelText: 'show_name',
                       border: OutlineInputBorder(),
                     ),
-                    onChanged: (value) => setState(() => _hasUnsavedChanges = true), // 设置标志
+                    onChanged: (value) =>
+                        setState(() => _hasUnsavedChanges = true), // 设置标志
                   ),
                   SizedBox(height: 8),
                   TextFormField(
@@ -421,7 +482,8 @@ class SettingsPageState extends State<SettingsPage> {
                       labelText: 'Platform_id',
                       border: OutlineInputBorder(),
                     ),
-                    onChanged: (value) => setState(() => _hasUnsavedChanges = true), // 设置标志
+                    onChanged: (value) =>
+                        setState(() => _hasUnsavedChanges = true), // 设置标志
                   ),
                   SizedBox(height: 8),
                   TextFormField(
@@ -430,13 +492,66 @@ class SettingsPageState extends State<SettingsPage> {
                       labelText: 'name',
                       border: OutlineInputBorder(),
                     ),
-                    onChanged: (value) => setState(() => _hasUnsavedChanges = true), // 设置标志
+                    onChanged: (value) =>
+                        setState(() => _hasUnsavedChanges = true), // 设置标志
                   ),
                 ],
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // 添加: 读取 setting.json 文件
+  Future<Map<String, dynamic>> _readSettings() async {
+    final settingsFile = File('settings.json');
+    final settingsContent = await settingsFile.readAsString();
+    return json.decode(settingsContent);
+  }
+}
+
+class MyHomePage extends StatefulWidget {
+  @override
+  _MyHomePageState createState() => _MyHomePageState();
+}
+
+class _MyHomePageState extends State<MyHomePage> {
+  final GlobalKey<SettingsPageState> _settingsPageKey =
+      GlobalKey<SettingsPageState>(); // 添加: 创建 GlobalKey
+
+  void _saveSettingsFromSettingsPage() {
+    // 使用 GlobalKey 访问 SettingsPage 的方法
+    _settingsPageKey.currentState?._saveSettings();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Home Page'),
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            ElevatedButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => SettingsPage(
+                      onSettingsSaved: _saveSettingsFromSettingsPage,
+                      settingsPageKey: _settingsPageKey, // 传递 GlobalKey
+                    ),
+                  ),
+                );
+              },
+              child: Text('Go to Settings'),
+            ),
+          ],
+        ),
       ),
     );
   }
