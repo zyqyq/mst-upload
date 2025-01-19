@@ -47,8 +47,8 @@ class _MyHomePageState extends State<MyHomePage> {
           onTogglePause: _handleTogglePause), // 修改: 使用 ValueNotifier
       HistoryPage(),
       SettingsPage(
-        settingsPageKey: _settingsPageKey,
-        onSettingsSaved: _onSettingsSaved), // 添加: 传递回调函数
+          key: _settingsPageKey,
+          onSettingsSaved: _onSettingsSaved), // 添加: 传递回调函数
     ];
     _startSyncTimer();
   }
@@ -126,7 +126,7 @@ class _MyHomePageState extends State<MyHomePage> {
                     print(_selectedIndex);
                     print(_settingsPageKey.currentState?.hasUnsavedChanges);
                     if (_selectedIndex == 2 &&
-                      _settingsPageKey.currentState?.hasUnsavedChanges ==
+                        _settingsPageKey.currentState?.hasUnsavedChanges ==
                             true) {
                       final shouldPop = await _settingsPageKey.currentState
                           ?.showUnsavedChangesDialog();

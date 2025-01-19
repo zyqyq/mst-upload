@@ -6,11 +6,12 @@ import 'package:mysql1/mysql1.dart'; // 添加 mysql1 库以进行数据库连�
 //import 'main.dart';
 
 class SettingsPage extends StatefulWidget {
+  final Key? key;
   final VoidCallback onSettingsSaved; // 添加: 添加 onSettingsSaved 回调函数
-  final GlobalKey<SettingsPageState> settingsPageKey; // 添加: 添加 GlobalKey
+  //final GlobalKey<SettingsPageState> settingsPageKey; // 添加: 添加 GlobalKey
 
   SettingsPage({
-      required this.settingsPageKey,
+      this.key,
       required this.onSettingsSaved,
     }); // 添加: 传递 GlobalKey 参数
 
@@ -103,9 +104,11 @@ class SettingsPageState extends State<SettingsPage> {
     }
 
     await file.writeAsString(json.encode(settings));
+    if (mounted) { // 再次检查是否已挂载
     setState(() {
       _hasUnsavedChanges = false; // 重置标志
     });
+  }
   }
 
   Future<void> _selectFolder(TextEditingController controller) async {
@@ -543,7 +546,7 @@ class _MyHomePageState extends State<MyHomePage> {
                   MaterialPageRoute(
                     builder: (context) => SettingsPage(
                       onSettingsSaved: _saveSettingsFromSettingsPage,
-                      settingsPageKey: _settingsPageKey, // 传递 GlobalKey
+                      key: _settingsPageKey, // 传递 GlobalKey
                     ),
                   ),
                 );
