@@ -185,7 +185,7 @@ class _TransferPageState extends State<TransferPage> {
                   cursor: SystemMouseCursors.click,
                   child: GestureDetector(
                     onTap: () {
-                      processFiles();
+                      processFiles(context);
                     },
                     child: Column(
                       children: <Widget>[

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:mysql1/mysql1.dart';
 import 'package:path/path.dart' as path;
 import 'upload_Para.dart';
+import 'package:flutter/material.dart'; 
 
 // 定义 _readSettings 方法
 Future<Map<String, dynamic>> _readSettings() async {
@@ -12,7 +13,7 @@ Future<Map<String, dynamic>> _readSettings() async {
 }
 
 // 遍历文件夹并处理数据
-void processFiles() async {
+void processFiles(BuildContext context) async { // 修改: 添加 BuildContext 参数
   // 读取设置
   final settings = await _readSettings();
   final showName = settings['show_name'];
@@ -35,7 +36,28 @@ void processFiles() async {
   final startTime = DateTime.now();
 
   // 链接MySQL
-  final conn = await MySqlConnection.connect(dbParams);
+  MySqlConnection? conn;
+  try {
+    conn = await MySqlConnection.connect(dbParams);
+  } catch (e) {
+    print('无法连接到数据库: $e');
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('数据库连接错误'),
+        content: Text('$e'),
+        actions: <Widget>[
+          TextButton(
+            child: Text('确定'),
+            onPressed: () {
+              Navigator.of(context).pop();
+            },
+          ),
+        ],
+      ),
+    );
+    return;
+  }
 
   // 定义文件列表
   final fileList = <String>[];

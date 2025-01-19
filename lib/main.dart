@@ -84,7 +84,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
   void processFileswithTimer() {
     // 执行文件同步操作
-    processFiles();
+    processFiles(context);
   }
 
   void _handleTogglePause(bool isPaused) {
