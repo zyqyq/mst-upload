@@ -21,15 +21,15 @@ void processFiles() async {
 
   // 定义数据库连接参数
   final dbParams = ConnectionSettings(
-    host: '127.0.0.1',
-    port: 3306,
-    user: 'root',
-    password: 'mysecretpw',
-    db: 'joyaiot_monitor',
+    host: settings['databaseAddress'],
+    port: int.parse(settings['databasePort']),
+    user: settings['databaseUsername'],
+    password: settings['databasePassword'],
+    db: settings['databaseName'],
   );
 
   // 定义需要读取的文件夹路径
-  final folderPath = '/Users/zyqyq/Program/数据集/L2BP/202408';
+  final folderPath = settings['sourceDataPath'];
 
   // 记录程序开始时间
   final startTime = DateTime.now();
@@ -37,27 +37,16 @@ void processFiles() async {
   // 链接MySQL
   final conn = await MySqlConnection.connect(dbParams);
 
-  // 遍历文件夹
-  final files = await Directory(folderPath).list().toList();
-  for (final file in files) {
-    if (file is Directory) {
-      final subFiles = await file.list().toList();
-      for (final subFile in subFiles) {
-        if (subFile.path.endsWith('.TXT')) {
-          final filePath = subFile.path;
-          // 检查是否重复
-          final isDuplicate =
-              await _isDuplicateRecord(conn, filePath, name, platformId);
-          if (isDuplicate) {
-            print('记录已存在，跳过文件: $filePath');
-            continue;
-          }
-          final data =
-              await readAndProcessFile(filePath, showName, name, platformId);
-          await insertDataToDatabase(conn, data);
-        }
-      }
-    }
+  // 定义文件列表
+  final fileList = <String>[];
+
+  // 递归遍历文件夹
+  await _traverseDirectory(folderPath, conn, fileList, name, platformId);
+
+  // 处理文件列表中的文件
+  for (final filePath in fileList) {
+    final data = await readAndProcessFile(filePath, showName, name, platformId);
+    await insertDataToDatabase(conn, data);
   }
 
   // 关闭游标和连接
@@ -69,6 +58,24 @@ void processFiles() async {
   // 计算并打印程序运行时间
   final runTime = endTime.difference(startTime).inMilliseconds;
   print('所有文件处理完成，程序运行时间：${runTime/1000.0}秒');
+}
+
+// 递归遍历文件夹
+Future<void> _traverseDirectory(String dirPath, MySqlConnection conn, List<String> fileList, String name, String platformId) async {
+  final dir = Directory(dirPath);
+  final files = await dir.list().toList();
+  for (final file in files) {
+    if (file is Directory) {
+      await _traverseDirectory(file.path, conn, fileList, name, platformId);
+    } else if (file.path.endsWith('.txt') || file.path.endsWith('.TXT')) {
+      final filePath = file.path;
+      // 检查是否重复
+      final isDuplicate = await _isDuplicateRecord(conn, filePath, name, platformId);
+      if (!isDuplicate) {
+        fileList.add(filePath);
+      } 
+    }
+  }
 }
 
 // 检查是否重复记录
