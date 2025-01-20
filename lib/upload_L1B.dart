@@ -2,16 +2,18 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:mysql1/mysql1.dart';
 import 'package:path/path.dart' as path;
-import 'package:mysql_client/mysql_client.dart';
+//import 'package:mysql_client/mysql_client.dart';
 
 // 处理单个文件并插入数据库
-Future<void> uploadL1B(String filePath, MySQLConnectionPool pool, String showName, String name, String platformId) async {
+Future<void> uploadL1B(String filePath, MySqlConnection conn, String showName,
+    String name, String platformId) async {
   final data = await readAndProcessFile(filePath, showName, name, platformId);
-  await insertDataToDatabase(pool, data); // 修改: 使用连接池
+  await insertDataToDatabase(conn, data); // 修改: 使用连接池
 }
 
 // 读取并处理文件内容
-Future<Map<String, dynamic>> readAndProcessFile(String filePath, String showName, String name, String platformId) async {
+Future<Map<String, dynamic>> readAndProcessFile(
+    String filePath, String showName, String name, String platformId) async {
   final file = File(filePath);
   final lines = await file.readAsLines();
   final data = <String, dynamic>{};
@@ -22,7 +24,7 @@ Future<Map<String, dynamic>> readAndProcessFile(String filePath, String showName
 
   // 跳过前34行
   for (int i = 34; i < lines.length; i++) {
-    final parts = lines[i].trim().split(' ');
+    final parts = lines[i].trim().split(RegExp(r'\s+'));
     if (parts.length < 15) continue;
 
     final height = double.parse(parts[0]);
@@ -51,10 +53,10 @@ Future<Map<String, dynamic>> readAndProcessFile(String filePath, String showName
 
     // 提取时间信息
     final fileName = path.basename(filePath);
-    final dateTimeStr = fileName.split('_')[-3].split('.')[0];
-    final dt = DateTime.parse('$dateTimeStr.000');
+    print(fileName);
+    final dateTimeStr = fileName.split('_')[5]; // 修改: 提取正确的日期时间部分
+    final dt = DateTime.parse('${dateTimeStr.substring(0, 4)}-${dateTimeStr.substring(4, 6)}-${dateTimeStr.substring(6, 8)}T${dateTimeStr.substring(8, 10)}:${dateTimeStr.substring(10, 12)}:${dateTimeStr.substring(12, 14)}');
     final dtStr = dt.toIso8601String();
-
     // 添加记录
     data['records'].add({
       'Time': dtStr,
@@ -80,13 +82,14 @@ Future<Map<String, dynamic>> readAndProcessFile(String filePath, String showName
 }
 
 // 插入数据到数据库
-Future<void> insertDataToDatabase(MySqlConnectionPool pool, Map<String, dynamic> data) async {
+Future<void> insertDataToDatabase(
+    MySqlConnection conn, Map<String, dynamic> data) async {
   final insertSql = '''
-  INSERT INTO smos_radar_qzgcz_L1BM (Time, show_name, name, Platform_id, Height, SNR1, Rv1, SW1, SNR2, Rv2, SW2, SNR3, Rv3, SW3, SNR4, Rv4, SW4, SNR5, Rv5, SW5)
+  INSERT INTO smos_radar_qzgcz_L1BM (Time, showname, name, Platform_id, Height, SNR1, Rv1, SW1, SNR2, Rv2, SW2, SNR3, Rv3, SW3, SNR4, Rv4, SW4, SNR5, Rv5, SW5)
   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   ''';
   for (final record in data['records']) {
-    await pool.query(insertSql, [
+    await conn.query(insertSql, [
       record['Time'],
       data['showName'],
       data['name'],
