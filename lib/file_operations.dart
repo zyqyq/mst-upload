@@ -4,6 +4,9 @@ import 'package:mysql1/mysql1.dart';
 import 'package:path/path.dart' as path;
 import 'upload_Para.dart';
 import 'package:flutter/material.dart'; 
+import 'upload_L1B.dart'; // 添加: 导入新的文件处理器模块
+import 'package:mysql_client/mysql_client.dart';
+
 
 // 定义 _readSettings 方法
 Future<Map<String, dynamic>> _readSettings() async {
@@ -35,10 +38,18 @@ void processFiles(BuildContext context) async { // 修改: 添加 BuildContext �
   // 记录程序开始时间
   final startTime = DateTime.now();
 
+  final pool = MySQLConnectionPool(
+    host: settings['databaseAddress'],
+    port: int.parse(settings['databasePort']),
+    userName: settings['databaseUsername'],
+    password: settings['databasePassword'],
+    databaseName: settings['databaseName'],
+    maxConnections: 5, // 根据需要调整最大连接数
+  );
+
   // 链接MySQL
-  MySqlConnection? conn;
   try {
-    conn = await MySqlConnection.connect(dbParams);
+    //await pool.connect();
   } catch (e) {
     print('无法连接到数据库: $e');
     showDialog(
@@ -62,17 +73,36 @@ void processFiles(BuildContext context) async { // 修改: 添加 BuildContext �
   // 定义文件列表
   final fileList = <String>[];
 
-  // 递归遍历文件夹
-  await _traverseDirectory(folderPath, conn, fileList, name, platformId);
+ // 递归遍历文件夹
+  try {
+    await _traverseDirectory(folderPath, pool, fileList, name, platformId);
 
-  // 处理文件列表中的文件
-  for (final filePath in fileList) {
-    final data = await readAndProcessFile(filePath, showName, name, platformId);
-    await insertDataToDatabase(conn, data);
+    // 处理文件列表中的文件
+    for (final filePath in fileList) {
+      await uploadL1B(filePath, pool, showName, name, platformId); // 修改: 使用连接池
+    }
+  } catch (e) {
+    print('处理文件时发生错误: $e');
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('文件处理错误'),
+        content: Text('$e'),
+        actions: <Widget>[
+          TextButton(
+            child: Text('确定'),
+            onPressed: () {
+              Navigator.of(context).pop();
+            },
+          ),
+        ],
+      ),
+    );
+  } finally {
+    // 关闭连接池
+    await pool.close();
   }
 
-  // 关闭游标和连接
-  await conn.close();
 
   // 记录程序结束时间
   final endTime = DateTime.now();
@@ -83,25 +113,28 @@ void processFiles(BuildContext context) async { // 修改: 添加 BuildContext �
 }
 
 // 递归遍历文件夹
-Future<void> _traverseDirectory(String dirPath, MySqlConnection conn, List<String> fileList, String name, String platformId) async {
-  final dir = Directory(dirPath);
-  final files = await dir.list().toList();
-  for (final file in files) {
-    if (file is Directory) {
-      await _traverseDirectory(file.path, conn, fileList, name, platformId);
-    } else if (file.path.endsWith('.txt') || file.path.endsWith('.TXT')) {
-      final filePath = file.path;
-      // 检查是否重复
-      final isDuplicate = await _isDuplicateRecord(conn, filePath, name, platformId);
-      if (!isDuplicate) {
-        fileList.add(filePath);
-      } 
+Future<void> _traverseDirectory(String dirPath, MySQLConnectionPool pool, List<String> fileList, String name, String platformId) async {
+  try {
+    final dir = Directory(dirPath);
+    final files = await dir.list().toList();
+    for (final file in files) {
+      if (file is Directory) {
+        await _traverseDirectory(file.path, pool, fileList, name, platformId);
+      } else if (file.path.toLowerCase().endsWith('.txt')) {
+        final filePath = file.path;
+        final isDuplicate = await _isDuplicateRecord(pool, filePath, name, platformId);
+        if (!isDuplicate) {
+          fileList.add(filePath);
+        }
+      }
     }
+  } catch (e) {
+    print('遍历文件夹时发生错误: $e');
   }
 }
 
 // 检查是否重复记录
-Future<bool> _isDuplicateRecord(MySqlConnection conn, String filePath,
+Future<bool> _isDuplicateRecord(MySQLConnectionPool pool, String filePath,
     String name, String platformId) async {
   final fileName = path.basename(filePath); // 使用path.basename获取文件名
   final dateTimeStr = fileName.split('_')[5];
@@ -122,12 +155,15 @@ Future<bool> _isDuplicateRecord(MySqlConnection conn, String filePath,
       AND Platform_id = ?
   )
 ''';
-  try {
-    final checkResult = await conn.query(checkSql, [dtStr, name, MST, platformId]);
-    final exists = checkResult.first[0] == 1; // 确保返回值是布尔类型
-    return exists; // 显式转换为 bool
-  } catch (e) {
-    print('查询过程中发生错误: $e');
-    return false; // 或者根据具体需求处理异常
-  }
+ final conn = await pool.getConnection(); // 获取连接
+try {
+  final checkResult = await conn.execute(checkSql, [dtStr, name, MST, platformId]);
+  final exists = checkResult.first[0] == 1;
+  return exists;
+} catch (e) {
+  print('查询过程中发生错误: $e');
+  return false;
+} finally {
+  await conn.close(); // 显式关闭连接
+}
 }
