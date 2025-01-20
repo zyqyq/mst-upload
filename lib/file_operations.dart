@@ -5,6 +5,7 @@ import 'package:path/path.dart' as path;
 import 'upload_Para.dart';
 import 'package:flutter/material.dart';
 import 'upload_L1B.dart';
+import 'upload_L2.dart';
 import 'dart:io';
 
 // 定义 _readSettings 方法
@@ -20,7 +21,13 @@ String getRelativeFilePath(String filePath, String folderPath, String mid) {
   final fileExtension = path.extension(relativePath);
   final fileNameWithoutExtension = path.basenameWithoutExtension(relativePath);
   final newFileName = '$fileNameWithoutExtension${"_processed"}$fileExtension';
-  return path.join('tmp', mid, newFileName);
+  String resultPath = path.join('tmp', mid, newFileName);
+
+  if (mid == 'L2') {
+    resultPath = resultPath.replaceFirst('PSPP_L1B', 'AWCN_L2');
+  }
+
+  return resultPath;
 }
 
 // 遍历文件夹并处理数据
@@ -50,6 +57,9 @@ void processFiles(BuildContext context) async {
   // 链接MySQL
   MySqlConnection? conn;
   try {
+    if (conn != null ) {
+      await conn!.close();
+    }
     conn = await MySqlConnection.connect(dbParams);
     await conn.query('USE ${settings['databaseName']}');
   } catch (e) {
@@ -80,35 +90,47 @@ void processFiles(BuildContext context) async {
 
   // 处理文件列表中的文件
   for (final filePath in fileList) {
-    await uploadL1B(filePath, conn, showName, name, platformId);
-    final newFilePath1 = getRelativeFilePath(filePath, folderPath, 'L1B');
-    final newFileDir1 = path.dirname(newFilePath1);
-    await Directory(newFileDir1).create(recursive: true);
-    final newFilePath2 = getRelativeFilePath(filePath, folderPath, 'L2');
-    final newFileDir2 = path.dirname(newFilePath1);
-    await Directory(newFileDir2).create(recursive: true);
+    if (filePath.contains('L1B')) {
+      await uploadL1B(filePath, conn, showName, name, platformId);
+      final newFilePath1 = getRelativeFilePath(filePath, folderPath, 'L1B');
+      final newFileDir1 = path.dirname(newFilePath1);
+      await Directory(newFileDir1).create(recursive: true);
 
-    try {
-      // 启动 Python 进程并传递参数
-      final result = await Process.run('/Library/Developer/CommandLineTools/usr/bin/python3', ['lib/libfix_for_flutter.py', filePath, newFilePath1]);
-      // 打印脚本的输出
-      print('stdout: ${result.stdout}');
-      print('stderr: ${result.stderr}');
-    } catch (e) {
-      // 处理异常
-      print('Error running Python script: $e');
-    }
-    await uploadL1B(newFilePath1, conn, showName, name, platformId);
-    
-    try {
-      // 启动 Python 进程并传递参数
-      final result = await Process.run('/Library/Developer/CommandLineTools/usr/bin/python3', ['lib/change_for_flutter.py', filePath, newFilePath2]);
-      // 打印脚本的输出
-      print('stdout: ${result.stdout}');
-      print('stderr: ${result.stderr}');
-    } catch (e) {
-      // 处理异常
-      print('Error running Python script: $e');
+      final newFilePath2 = getRelativeFilePath(filePath, folderPath, 'L2');
+      print(newFilePath2);
+      final newFileDir2 = path.dirname(newFilePath2);
+      await Directory(newFileDir2).create(recursive: true);
+
+      try {
+        // 启动 Python 进程并传递参数
+        final result = await Process.run(
+            '/Library/Developer/CommandLineTools/usr/bin/python3',
+            ['lib/libfix_for_flutter.py', filePath, newFilePath1]);
+        // 打印脚本的输出
+        print('stdout: ${result.stdout}');
+        print('stderr: ${result.stderr}');
+      } catch (e) {
+        // 处理异常
+        print('Error running Python script: $e');
+      }
+      await uploadL1B(newFilePath1, conn, showName, name, platformId);
+
+      try {
+        // 启动 Python 进程并传递参数
+        final result = await Process.run(
+            '/Library/Developer/CommandLineTools/usr/bin/python3',
+            ['lib/change_for_flutter.py', newFilePath1, newFilePath2]);
+        // 打印脚本的输出
+        print('stdout: ${result.stdout}');
+        print('stderr: ${result.stderr}');
+      } catch (e) {
+        // 处理异常
+        print('Error running Python script: $e');
+      }
+      await uploadL2(newFilePath2, conn, showName, name, platformId);
+      await uploadPara(newFileDir2, conn, showName, name, platformId);
+    } else if (filePath.contains('L2')) {
+      await uploadL2(filePath, conn, showName, name, platformId);
     }
   }
 

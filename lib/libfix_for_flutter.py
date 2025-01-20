@@ -502,8 +502,7 @@ if __name__ == "__main__":
     count10 = 0; count0 = 0; count = 0; count1 = 0
     prefactor = 0; aftfactor = 0
 
-    # 记录程序开始时间
-    start_time = datetime.now()
+
 
     # 读取数据
     original_data, comments = read_data(args.source_file)
@@ -537,11 +536,3 @@ if __name__ == "__main__":
 
     # 将处理后的数据写入新文件
     write_data(updated_data, args.output_file, comments)
-
-    print(f"Data processing completed.\n New file saved as '{args.output_file}'")
-    # 记录程序结束时间
-    end_time = datetime.now()
-
-    # 计算并打印程序运行时间
-    run_time = (end_time - start_time).total_seconds()
-    print(f"文件处理完成，程序运行时间：{run_time}秒")

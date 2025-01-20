@@ -3,6 +3,14 @@ import 'dart:io';
 import 'package:mysql1/mysql1.dart';
 import 'package:path/path.dart' as path;
 
+Future<void> uploadPara(String filePath, MySqlConnection conn,
+    String showName, String name, String platformId) async {
+    // 读取并处理文件
+    final data = await readAndProcessFile(filePath, showName, name, platformId);
+    // 插入数据到数据库
+    await insertDataToDatabase(conn, data);
+    }
+
 // 读取并处理文件
 Future<Map<String, dynamic>> readAndProcessFile(
     String filePath, String showName, String name, String platformId) async {

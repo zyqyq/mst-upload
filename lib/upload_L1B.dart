@@ -47,7 +47,6 @@ Future<Map<String, dynamic>> readAndProcessFile(
   // 跳过前34行
   for (int i = 34; i < lines.length; i++) {
     final parts = lines[i].trim().split(RegExp(r'\s+'));
-    print(parts);
     if (parts.length < 15) continue;
 
     final height = _parseDouble(parts[0]);
