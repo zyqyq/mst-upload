@@ -8,7 +8,22 @@ import 'package:path/path.dart' as path;
 Future<void> uploadL1B(String filePath, MySqlConnection conn, String showName,
     String name, String platformId) async {
   final data = await readAndProcessFile(filePath, showName, name, platformId);
-  await insertDataToDatabase(conn, data); // 修改: 使用连接池
+  final fileName = path.basenameWithoutExtension(filePath);
+  String tableName;
+
+  if (fileName.endsWith('ST')) {
+    tableName = 'smos_radar_qzgcz_L1BST';
+  } else if (fileName.endsWith('ST_processed')) {
+    tableName = 'smos_radar_qzgcz_L1BSTProcessed';
+  } else if (fileName.endsWith('M')) {
+    tableName = 'smos_radar_qzgcz_L1BM';
+  } else if (fileName.endsWith('M_processed')) {
+    tableName = 'smos_radar_qzgcz_L1BMProcessed';
+  } else {
+    throw Exception('Unsupported file type');
+  }
+
+  await insertDataToDatabase(conn, data, tableName); // 修改: 传递表名参数
 }
 
 // 读取并处理文件内容
@@ -22,41 +37,37 @@ Future<Map<String, dynamic>> readAndProcessFile(
   data['platformId'] = platformId;
   data['records'] = <Map<String, dynamic>>[];
 
+  // 提取时间信息
+  final fileName = path.basename(filePath);
+  final dateTimeStr = fileName.split('_')[5]; // 修改: 提取正确的日期时间部分
+  final dt = DateTime.parse('${dateTimeStr.substring(0, 4)}-${dateTimeStr.substring(4, 6)}-${dateTimeStr.substring(6, 8)}T${dateTimeStr.substring(8, 10)}:${dateTimeStr.substring(10, 12)}:${dateTimeStr.substring(12, 14)}');
+  final dtStr = dt.toIso8601String();
+  print("正在处理:$fileName");
+
   // 跳过前34行
   for (int i = 34; i < lines.length; i++) {
     final parts = lines[i].trim().split(RegExp(r'\s+'));
+    print(parts);
     if (parts.length < 15) continue;
 
-    final height = double.parse(parts[0]);
-    final snr1 = double.parse(parts[1]);
-    var rv1 = double.parse(parts[2]);
-    final sw1 = double.parse(parts[3]);
-    final snr2 = double.parse(parts[4]);
-    var rv2 = double.parse(parts[5]);
-    final sw2 = double.parse(parts[6]);
-    final snr3 = double.parse(parts[7]);
-    var rv3 = double.parse(parts[8]);
-    final sw3 = double.parse(parts[9]);
-    final snr4 = double.parse(parts[10]);
-    var rv4 = double.parse(parts[11]);
-    final sw4 = double.parse(parts[12]);
-    final snr5 = double.parse(parts[13]);
-    var rv5 = double.parse(parts[14]);
-    final sw5 = double.parse(parts[15]);
+    final height = _parseDouble(parts[0]);
+    final snr1 = _parseDouble(parts[1]);
+    final rv1 = _parseDouble(parts[2]);
+    final sw1 = _parseDouble(parts[3]);
+    final snr2 = _parseDouble(parts[4]);
+    final rv2 = _parseDouble(parts[5]);
+    final sw2 = _parseDouble(parts[6]);
+    final snr3 = _parseDouble(parts[7]);
+    final rv3 = _parseDouble(parts[8]);
+    final sw3 = _parseDouble(parts[9]);
+    final snr4 = _parseDouble(parts[10]);
+    final rv4 = _parseDouble(parts[11]);
+    final sw4 = _parseDouble(parts[12]);
+    final snr5 = _parseDouble(parts[13]);
+    final rv5 = _parseDouble(parts[14]);
+    final sw5 = _parseDouble(parts[15]);
 
-    // 处理NaN值
-    if (rv1.isNaN) rv1 = -9999999;
-    if (rv2.isNaN) rv2 = -9999999;
-    if (rv3.isNaN) rv3 = -9999999;
-    if (rv4.isNaN) rv4 = -9999999;
-    if (rv5.isNaN) rv5 = -9999999;
 
-    // 提取时间信息
-    final fileName = path.basename(filePath);
-    print(fileName);
-    final dateTimeStr = fileName.split('_')[5]; // 修改: 提取正确的日期时间部分
-    final dt = DateTime.parse('${dateTimeStr.substring(0, 4)}-${dateTimeStr.substring(4, 6)}-${dateTimeStr.substring(6, 8)}T${dateTimeStr.substring(8, 10)}:${dateTimeStr.substring(10, 12)}:${dateTimeStr.substring(12, 14)}');
-    final dtStr = dt.toIso8601String();
     // 添加记录
     data['records'].add({
       'Time': dtStr,
@@ -81,11 +92,18 @@ Future<Map<String, dynamic>> readAndProcessFile(
   return data;
 }
 
+double _parseDouble(String str) {
+  if (str.toLowerCase() == 'nan') {
+    return -9999999; // 或者其他你认为合适的默认值
+  }
+  return double.parse(str);
+}
+
 // 插入数据到数据库
 Future<void> insertDataToDatabase(
-    MySqlConnection conn, Map<String, dynamic> data) async {
+    MySqlConnection conn, Map<String, dynamic> data, String tableName) async {
   final insertSql = '''
-  INSERT INTO smos_radar_qzgcz_L1BM (Time, showname, name, Platform_id, Height, SNR1, Rv1, SW1, SNR2, Rv2, SW2, SNR3, Rv3, SW3, SNR4, Rv4, SW4, SNR5, Rv5, SW5)
+  INSERT INTO $tableName (Time, show_name, name, Platform_id, Height, SNR1, Rv1, SW1, SNR2, Rv2, SW2, SNR3, Rv3, SW3, SNR4, Rv4, SW4, SNR5, Rv5, SW5)
   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   ''';
   for (final record in data['records']) {

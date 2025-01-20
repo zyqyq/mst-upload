@@ -5,12 +5,19 @@ import 'package:path/path.dart' as path;
 import 'upload_Para.dart';
 import 'package:flutter/material.dart';
 import 'upload_L1B.dart';
+import 'dart:io';
 
 // 定义 _readSettings 方法
 Future<Map<String, dynamic>> _readSettings() async {
   final settingsFile = File('settings.json');
   final settingsContent = await settingsFile.readAsString();
   return json.decode(settingsContent);
+}
+
+// 新增: 根据filePath和folderPath的相对位置，输出tmp/mid（mid是参数）下相同相对位置的的文件路径
+String getRelativeFilePath(String filePath, String folderPath, String mid) {
+  final relativePath = path.relative(filePath, from: folderPath);
+  return path.join('tmp', mid, relativePath);
 }
 
 // 遍历文件夹并处理数据
@@ -70,7 +77,22 @@ void processFiles(BuildContext context) async {
 
   // 处理文件列表中的文件
   for (final filePath in fileList) {
-   await uploadL1B(filePath, conn, showName, name, platformId);
+    await uploadL1B(filePath, conn, showName, name, platformId);
+    final newFilePath = getRelativeFilePath(filePath, folderPath, 'L1B');
+    final newFileDir = path.dirname(newFilePath);
+    await Directory(newFileDir).create(recursive: true);
+    try {
+      // 启动 Python 进程并传递参数
+      final result = await Process.run('/Library/Developer/CommandLineTools/usr/bin/python3', ['lib/libfix_for_flutter.py', filePath, newFilePath]);
+
+      // 打印脚本的输出
+      print('stdout: ${result.stdout}');
+      print('stderr: ${result.stderr}');
+    } catch (e) {
+      // 处理异常
+      print('Error running Python script: $e');
+    }
+    await uploadL1B(newFilePath, conn, showName, name, platformId);
   }
 
   // 关闭游标和连接
