@@ -11,9 +11,9 @@ class SettingsPage extends StatefulWidget {
   //final GlobalKey<SettingsPageState> settingsPageKey; // 添加: 添加 GlobalKey
 
   SettingsPage({
-      this.key,
-      required this.onSettingsSaved,
-    }); // 添加: 传递 GlobalKey 参数
+    this.key,
+    required this.onSettingsSaved,
+  }); // 添加: 传递 GlobalKey 参数
 
   @override
   SettingsPageState createState() => SettingsPageState();
@@ -103,12 +103,16 @@ class SettingsPageState extends State<SettingsPage> {
       widget.onSettingsSaved(); // 调用回调函数通知 MyHomePage
     }
 
-    await file.writeAsString(json.encode(settings));
-    if (mounted) { // 再次检查是否已挂载
-    setState(() {
-      _hasUnsavedChanges = false; // 重置标志
-    });
-  }
+    oldSettings.addAll(settings);
+
+    await file
+        .writeAsString(const JsonEncoder.withIndent('  ').convert(oldSettings));
+    if (mounted) {
+      // 再次检查是否已挂载
+      setState(() {
+        _hasUnsavedChanges = false; // 重置标志
+      });
+    }
   }
 
   Future<void> _selectFolder(TextEditingController controller) async {
@@ -145,6 +149,20 @@ class SettingsPageState extends State<SettingsPage> {
         !File(conversionProgramPath).existsSync()) {
       _showErrorDialog('转换程序地址不是一个有效的 .py 文件');
       return;
+    }
+
+    if (_syncFrequencyController.text.isNotEmpty) {
+      int syncFrequency;
+      try {
+        syncFrequency = int.parse(_syncFrequencyController.text);
+        if (syncFrequency < 0 && syncFrequency != -1) {
+          _showErrorDialog('同步频率必须是正整数或 -1');
+          return;
+        }
+      } catch (e) {
+        _showErrorDialog('同步频率必须是有效的整数');
+        return;
+      }
     }
 
     // 如果所有路径都有效
@@ -234,7 +252,7 @@ class SettingsPageState extends State<SettingsPage> {
                 TextButton(
                   child: Text('确认保存'),
                   onPressed: () {
-                    _saveSettings(); // 保存更改
+                    _validatePaths(); // 保存更改
                     Navigator.of(context).pop(true); // 返回 true 表示保存更改
                   },
                 ),
@@ -358,7 +376,7 @@ class SettingsPageState extends State<SettingsPage> {
                         child: TextFormField(
                           controller: _syncFrequencyController, // 修改: 同步频率控制器
                           decoration: InputDecoration(
-                            labelText: 'n分钟一次', // 修改: 后缀解释
+                            labelText: 'n分钟一次（-1则手动模式）', // 修改: 后缀解释
                             border: OutlineInputBorder(),
                           ),
                           onChanged: (value) =>

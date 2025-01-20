@@ -10,19 +10,19 @@ double _parseDouble(String str) {
   return double.parse(str);
 }
 
-Future<void> uploadL2(String newFilePath2, MySqlConnection conn, String showName, String name, String platformId) async {
+Future<void> uploadL2(String newFilePath2, MySqlConnection conn, String showName, String name, String platformId,Map<String, dynamic> settings) async {
 
   final fileName = path.basenameWithoutExtension(newFilePath2);
   String tableName;
 
-  if (fileName.endsWith('ST')) {
-    tableName = 'smos_radar_qzgcz_L2ST';
+   if (fileName.endsWith('ST')) {
+    tableName = settings['L2STTableName']; // 从设置中读取表名
   } else if (fileName.endsWith('ST_processed')) {
-    tableName = 'smos_radar_qzgcz_L2STProcessed';
+    tableName = settings['L2STProcessedTableName']; // 从设置中读取表名
   } else if (fileName.endsWith('M')) {
-    tableName = 'smos_radar_qzgcz_L2M';
+    tableName = settings['L2MTableName']; // 从设置中读取表名
   } else if (fileName.endsWith('M_processed')) {
-    tableName = 'smos_radar_qzgcz_L2MProcessed';
+    tableName = settings['L2MProcessedTableName']; // 从设置中读取表名
   } else {
     throw Exception('Unsupported file type');
   }

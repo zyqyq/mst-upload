@@ -31,7 +31,7 @@ String getRelativeFilePath(String filePath, String folderPath, String mid) {
 }
 
 // 遍历文件夹并处理数据
-void processFiles(BuildContext context) async {
+Future<void> processFiles(BuildContext context) async {
   // 修改: 添加 BuildContext 参数
   // 读取设置
   final settings = await _readSettings();
@@ -92,7 +92,7 @@ void processFiles(BuildContext context) async {
   // 处理文件列表中的文件
   for (final filePath in fileList) {
     if (filePath.contains('L1B')) {
-      await uploadL1B(filePath, conn, showName, name, platformId);
+      await uploadL1B(filePath, conn, showName, name, platformId, settings);
       final newFilePath1 = getRelativeFilePath(filePath, folderPath, 'L1B');
       final newFileDir1 = path.dirname(newFilePath1);
       await Directory(newFileDir1).create(recursive: true);
@@ -114,7 +114,7 @@ void processFiles(BuildContext context) async {
         // 处理异常
         print('Error running Python script: $e');
       }
-      await uploadL1B(newFilePath1, conn, showName, name, platformId);
+      await uploadL1B(newFilePath1, conn, showName, name, platformId,settings);
 
       try {
         // 启动 Python 进程并传递参数
@@ -128,10 +128,10 @@ void processFiles(BuildContext context) async {
         // 处理异常
         print('Error running Python script: $e');
       }
-      await uploadL2(newFilePath2, conn, showName, name, platformId);
-      await uploadPara(newFilePath2, conn, showName, name, platformId);
+      await uploadL2(newFilePath2, conn, showName, name, platformId, settings); // 修改: 传递 settings 参数
+      await uploadPara(newFilePath2, conn, showName, name, platformId, settings['DeviceTableNme']);
     } else if (filePath.contains('L2')) {
-      await uploadL2(filePath, conn, showName, name, platformId);
+      await uploadL2(filePath, conn, showName, name, platformId, settings); // 修改: 传递 settings 参数
     }
   }
 

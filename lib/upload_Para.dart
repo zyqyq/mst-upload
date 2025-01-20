@@ -4,11 +4,11 @@ import 'package:mysql1/mysql1.dart';
 import 'package:path/path.dart' as path;
 
 Future<void> uploadPara(String filePath, MySqlConnection conn,
-    String showName, String name, String platformId) async {
+    String showName, String name, String platformId,String set) async {
     // 读取并处理文件
     final data = await readAndProcessFile(filePath, showName, name, platformId);
     // 插入数据到数据库
-    await insertDataToDatabase(conn, data);
+    await insertDataToDatabase(conn, data,set);
     }
 
 // 读取并处理文件
@@ -122,9 +122,9 @@ Future<Map<String, dynamic>> readAndProcessFile(
 
 // 插入数据到数据库
 Future<void> insertDataToDatabase(
-    MySqlConnection conn, Map<String, dynamic> data) async {
+    MySqlConnection conn, Map<String, dynamic> data,String set) async {
   final sql = '''
-    INSERT INTO smos_radar_qzgcz_device2 
+    INSERT INTO $set 
     (Time, show_name, name, MST, Platform_id, RecordNumber, RecordNumProcessed, Lof_delete_dot, Seconded_delete_dot, Prefactor, Aftfactor, QualityFlag, TansInputPower, WellRAntennaNum, WellTAntennaNum, Freq, PkPower, RAntennaNum, TAntennaNum, BeamWidth, Rband, PlsWidth, PlsCode, PRF, PlsAccum, Ranges, GateNum, Rmin, EleAngle, BeamOrder, nFFT, SpAverage) 
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   ''';

@@ -4,7 +4,6 @@ import 'dart:convert';
 import 'package:mysql1/mysql1.dart';
 import 'package:path/path.dart' as path; // 添加路径处理库
 import 'dart:convert'; // 添加json处理库
-import 'upload_Para.dart'; // 导入 upload_Para.dart 文件
 import 'file_operations.dart'; // 导入 file_operations.dart 文件
 import 'main.dart';
 import 'dart:async'; // 引入 Timer 所需的库
@@ -142,7 +141,6 @@ class _TransferPageState extends State<TransferPage> {
         }
 
         final settings = snapshot.data!;
-        final syncFrequency = settings['syncFrequency'] ?? 5;
 
         return Scaffold(
           appBar: AppBar(
@@ -334,13 +332,19 @@ class CountdownTextState extends State<CountdownText> {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<int>(
-      valueListenable: _remainingSecondsNotifier,
-      builder: (context, remainingSeconds, child) {
-        final countdownText =
-            '${remainingSeconds ~/ 60}:${(remainingSeconds % 60).toString().padLeft(2, '0')}后执行同步';
-        return Text(countdownText);
-      },
-    );
-  }
+  return ValueListenableBuilder<int>(
+    valueListenable: _remainingSecondsNotifier,
+    builder: (context, remainingSeconds, child) {
+      String countdownText;
+      if (remainingSeconds == -60) {
+        countdownText = '手动同步模式';
+      } else if (remainingSeconds == 0) {
+        countdownText = '正在同步中';
+      } else {
+        countdownText = '${remainingSeconds ~/ 60}:${(remainingSeconds % 60).toString().padLeft(2, '0')}后执行同步';
+      }
+      return Text(countdownText);
+    },
+  );
+}
 }

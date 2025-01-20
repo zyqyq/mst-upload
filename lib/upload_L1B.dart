@@ -6,19 +6,19 @@ import 'package:path/path.dart' as path;
 
 // 处理单个文件并插入数据库
 Future<void> uploadL1B(String filePath, MySqlConnection conn, String showName,
-    String name, String platformId) async {
+    String name, String platformId,Map<String, dynamic> settings) async {
   final data = await readAndProcessFile(filePath, showName, name, platformId);
   final fileName = path.basenameWithoutExtension(filePath);
   String tableName;
 
   if (fileName.endsWith('ST')) {
-    tableName = 'smos_radar_qzgcz_L1BST';
+    tableName = settings['L1BSTTableName']; // 从设置中读取表名
   } else if (fileName.endsWith('ST_processed')) {
-    tableName = 'smos_radar_qzgcz_L1BSTProcessed';
+    tableName = settings['L1BSTProcessedTableName']; // 从设置中读取表名
   } else if (fileName.endsWith('M')) {
-    tableName = 'smos_radar_qzgcz_L1BM';
+    tableName = settings['L1BMTableName']; // 从设置中读取表名
   } else if (fileName.endsWith('M_processed')) {
-    tableName = 'smos_radar_qzgcz_L1BMProcessed';
+    tableName = settings['L1BMProcessedTableName']; // 从设置中读取表名
   } else {
     throw Exception('Unsupported file type');
   }
