@@ -17,7 +17,10 @@ Future<Map<String, dynamic>> _readSettings() async {
 // 新增: 根据filePath和folderPath的相对位置，输出tmp/mid（mid是参数）下相同相对位置的的文件路径
 String getRelativeFilePath(String filePath, String folderPath, String mid) {
   final relativePath = path.relative(filePath, from: folderPath);
-  return path.join('tmp', mid, relativePath);
+  final fileExtension = path.extension(relativePath);
+  final fileNameWithoutExtension = path.basenameWithoutExtension(relativePath);
+  final newFileName = '$fileNameWithoutExtension${"_processed"}$fileExtension';
+  return path.join('tmp', mid, newFileName);
 }
 
 // 遍历文件夹并处理数据
@@ -78,13 +81,16 @@ void processFiles(BuildContext context) async {
   // 处理文件列表中的文件
   for (final filePath in fileList) {
     await uploadL1B(filePath, conn, showName, name, platformId);
-    final newFilePath = getRelativeFilePath(filePath, folderPath, 'L1B');
-    final newFileDir = path.dirname(newFilePath);
-    await Directory(newFileDir).create(recursive: true);
+    final newFilePath1 = getRelativeFilePath(filePath, folderPath, 'L1B');
+    final newFileDir1 = path.dirname(newFilePath1);
+    await Directory(newFileDir1).create(recursive: true);
+    final newFilePath2 = getRelativeFilePath(filePath, folderPath, 'L2');
+    final newFileDir2 = path.dirname(newFilePath1);
+    await Directory(newFileDir2).create(recursive: true);
+
     try {
       // 启动 Python 进程并传递参数
-      final result = await Process.run('/Library/Developer/CommandLineTools/usr/bin/python3', ['lib/libfix_for_flutter.py', filePath, newFilePath]);
-
+      final result = await Process.run('/Library/Developer/CommandLineTools/usr/bin/python3', ['lib/libfix_for_flutter.py', filePath, newFilePath1]);
       // 打印脚本的输出
       print('stdout: ${result.stdout}');
       print('stderr: ${result.stderr}');
@@ -92,7 +98,18 @@ void processFiles(BuildContext context) async {
       // 处理异常
       print('Error running Python script: $e');
     }
-    await uploadL1B(newFilePath, conn, showName, name, platformId);
+    await uploadL1B(newFilePath1, conn, showName, name, platformId);
+    
+    try {
+      // 启动 Python 进程并传递参数
+      final result = await Process.run('/Library/Developer/CommandLineTools/usr/bin/python3', ['lib/change_for_flutter.py', filePath, newFilePath2]);
+      // 打印脚本的输出
+      print('stdout: ${result.stdout}');
+      print('stderr: ${result.stderr}');
+    } catch (e) {
+      // 处理异常
+      print('Error running Python script: $e');
+    }
   }
 
   // 关闭游标和连接
