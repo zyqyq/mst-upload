@@ -57,10 +57,11 @@ void processFiles(BuildContext context) async {
   // 链接MySQL
   MySqlConnection? conn;
   try {
-    if (conn != null ) {
+    if (conn != null) {
       await conn!.close();
     }
     conn = await MySqlConnection.connect(dbParams);
+    print(settings['databaseName']);
     await conn.query('USE ${settings['databaseName']}');
   } catch (e) {
     print('无法连接到数据库: $e');
@@ -128,7 +129,7 @@ void processFiles(BuildContext context) async {
         print('Error running Python script: $e');
       }
       await uploadL2(newFilePath2, conn, showName, name, platformId);
-      await uploadPara(newFileDir2, conn, showName, name, platformId);
+      await uploadPara(newFilePath2, conn, showName, name, platformId);
     } else if (filePath.contains('L2')) {
       await uploadL2(filePath, conn, showName, name, platformId);
     }
