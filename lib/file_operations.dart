@@ -199,7 +199,6 @@ Future<bool> _isDuplicateRecord(MySqlConnection conn, String filePath,
 
   final MSTStr = fileName.split('_')[5];
   final MST = MSTStr == 'M' ? 0 : 1;
-
   final checkSql = '''
   SELECT EXISTS(
     SELECT 1 
@@ -214,6 +213,7 @@ Future<bool> _isDuplicateRecord(MySqlConnection conn, String filePath,
     final checkResult =
         await conn.query(checkSql, [dtStr, name, MST, platformId]);
     final exists = checkResult.first[0] == 1; // 确保返回值是布尔类型
+    print('$fileName 是否重复:$exists');
     return exists; // 显式转换为 bool
   } catch (e) {
     print('$fileName查询过程中发生错误:$e');
