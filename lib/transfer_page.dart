@@ -183,7 +183,7 @@ class _TransferPageState extends State<TransferPage> {
                   cursor: SystemMouseCursors.click,
                   child: GestureDetector(
                     onTap: () {
-                      processFiles(context);
+                      widget.countdownNotifier.value = 0; 
                     },
                     child: Column(
                       children: <Widget>[

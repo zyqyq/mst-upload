@@ -89,6 +89,10 @@ Future<void> processFiles(BuildContext context) async {
   // 递归遍历文件夹
   await _traverseDirectory(folderPath, conn, fileList, name, platformId);
 
+    // 更新总文件数
+  int totalFiles = fileList.length;
+  int processedFiles = 0;
+
   // 处理文件列表中的文件
   for (final filePath in fileList) {
     if (filePath.contains('L1B')) {
@@ -133,6 +137,9 @@ Future<void> processFiles(BuildContext context) async {
     } else if (filePath.contains('L2')) {
       await uploadL2(filePath, conn, showName, name, platformId, settings); // 修改: 传递 settings 参数
     }
+    // 更新进度
+    processedFiles++;
+    //progressNotifier.value = (processedFiles * 100 / totalFiles).round();
   }
 
   // 关闭游标和连接

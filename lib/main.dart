@@ -58,6 +58,7 @@ class _MyHomePageState extends State<MyHomePage> {
   Future<Map<String, dynamic>> _readSettings() async {
     final settingsFile = File('settings.json');
     final settingsContent = await settingsFile.readAsString();
+    print(settingsContent);
     if (settingsContent.trim().isEmpty) {
       print('settings.json 文件内容为空，使用默认设置');
     }
@@ -74,11 +75,12 @@ class _MyHomePageState extends State<MyHomePage> {
     _countdownNotifier.value = _remainingSeconds; // 修改: 初始化倒计时
     _syncTimer = Timer.periodic(Duration(seconds: 1), (_) async {
       // 修改: 存储新的定时器实例
-      if (!_isPaused && _remainingSeconds > 0) {
+      //print(_countdownNotifier.value);
+      if (!_isPaused && _remainingSeconds > 0 && _countdownNotifier.value > 0) {
         // 修改: 添加 _isPaused 检查
         _remainingSeconds--;
         _countdownNotifier.value = _remainingSeconds; // 修改: 更新 ValueNotifier
-      } else if (_remainingSeconds == 0) {
+      } else if (_remainingSeconds == 0 || _countdownNotifier.value == 0) {
         await processFileswithTimer();
         _remainingSeconds = syncFrequency * 60;
         _countdownNotifier.value = _remainingSeconds; // 修改: 重置 ValueNotifier
