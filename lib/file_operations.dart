@@ -31,7 +31,8 @@ String getRelativeFilePath(String filePath, String folderPath, String mid) {
 }
 
 // 遍历文件夹并处理数据
-Future<void> processFiles(BuildContext context,ValueNotifier<int> progressNotifier) async {
+Future<void> processFiles(
+    BuildContext context, ValueNotifier<int> progressNotifier) async {
   print("开始处理文件");
   // 修改: 添加 BuildContext 参数
   // 读取设置
@@ -39,6 +40,7 @@ Future<void> processFiles(BuildContext context,ValueNotifier<int> progressNotifi
   final showName = settings['show_name'];
   final name = settings['name'];
   final platformId = settings['Platform_id'];
+  progressNotifier.value = 0;
 
   // 定义数据库连接参数
   final dbParams = ConnectionSettings(
@@ -89,7 +91,7 @@ Future<void> processFiles(BuildContext context,ValueNotifier<int> progressNotifi
 
   // 递归遍历文件夹
   await _traverseDirectory(folderPath, conn, fileList, name, platformId);
-
+  progressNotifier.value = 10;
   // 更新总文件数
   int totalFiles = fileList.length;
   int processedFiles = 0;
@@ -154,7 +156,7 @@ Future<void> processFiles(BuildContext context,ValueNotifier<int> progressNotifi
     }
     // 更新进度
     processedFiles++;
-    progressNotifier.value = (processedFiles * 100 / totalFiles).round();
+    progressNotifier.value = (processedFiles * 90 / totalFiles+10).round();
   }
 
   // 关闭游标和连接
@@ -166,6 +168,8 @@ Future<void> processFiles(BuildContext context,ValueNotifier<int> progressNotifi
   // 计算并打印程序运行时间
   final runTime = endTime.difference(startTime).inMilliseconds;
   print('所有文件处理完成，程序运行时间：${runTime / 1000.0}秒');
+
+  progressNotifier.value = 0;
 }
 
 // 递归遍历文件夹

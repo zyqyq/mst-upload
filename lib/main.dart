@@ -6,6 +6,7 @@ import 'dart:async'; // 添加: 引入 Timer 所需的库
 import 'dart:io'; // 添加: 导入 dart:io 库以使用 File
 import 'dart:convert'; // 添加: 导入 dart:convert 库以使用 json
 import 'file_operations.dart';
+import 'package:liquid_progress_indicator_v2/liquid_progress_indicator.dart';
 
 void main() {
   runApp(MyApp());
@@ -140,77 +141,84 @@ class _MyHomePageState extends State<MyHomePage> {
                   valueListenable: _progressNotifier,
                   builder: (context, progress, child) {
                     return Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.bottomCenter,
-                          end: Alignment.topCenter,
-                          colors: [
-                            Colors.blue.shade900,
-                            Colors.blue.shade100,
-                          ],
-                          stops: [
-                            progress / 100.0,
-                            1.0,
-                          ],
-                        ),
-                      ),
-                      child: NavigationRail(
-                        extended: true,
-                        selectedIndex: _selectedIndex,
-                        onDestinationSelected: (int index) async {
-                          if (_selectedIndex == 2 &&
-                              _settingsPageKey
-                                      .currentState?.hasUnsavedChanges ==
-                                  true) {
-                            final shouldPop = await _settingsPageKey
-                                .currentState
-                                ?.showUnsavedChangesDialog();
-                            if (shouldPop == true) {
-                              setState(() {
-                                _selectedIndex = index;
-                              });
-                            }
-                          } else {
-                            setState(() {
-                              _selectedIndex = index;
-                            });
-                          }
-                        },
-                        labelType: NavigationRailLabelType.none,
-                        leading: Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: ValueListenableBuilder<int>(
-                            valueListenable: _progressNotifier,
-                            builder: (context, progress, child) {
-                              if (progress != 0 && progress != 100) {
-                                return Text('进度: $progress%',
-                                    style: TextStyle(
-                                        fontSize: 24,
-                                        fontWeight: FontWeight.bold));
+                      child: Stack(
+                        children: [
+                          Positioned.fill(
+                            child: Align(
+                              alignment: Alignment.center,
+                              child: LiquidLinearProgressIndicator(
+                                value: progress / 100.0,
+                                valueColor: AlwaysStoppedAnimation(Theme.of(context).primaryColor.withAlpha((0.5 *255).toInt())),
+                                backgroundColor: Theme.of(context)
+                                                  .primaryColor
+                                                  .withAlpha((0.3 * 255).toInt()),
+                                borderColor:Theme.of(context).primaryColor.withAlpha((0.3 *255).toInt()),
+                                borderWidth: 0.0,
+                                borderRadius: 0.0,
+                                direction: Axis.vertical,
+                              ),
+                            ),
+                          ),
+                          NavigationRail(
+                            backgroundColor: Colors.transparent, // 设置背景为透明
+                            extended: true,
+                            selectedIndex: _selectedIndex,
+                            onDestinationSelected: (int index) async {
+                              if (_selectedIndex == 2 &&
+                                  _settingsPageKey
+                                          .currentState?.hasUnsavedChanges ==
+                                      true) {
+                                final shouldPop = await _settingsPageKey
+                                    .currentState
+                                    ?.showUnsavedChangesDialog();
+                                if (shouldPop == true) {
+                                  setState(() {
+                                    _selectedIndex = index;
+                                  });
+                                }
                               } else {
-                                return Text('MST上传',
-                                    style: TextStyle(
-                                        fontSize: 24,
-                                        fontWeight: FontWeight.bold));
+                                setState(() {
+                                  _selectedIndex = index;
+                                });
                               }
                             },
-                          ),
-                        ),
-                        destinations: [
-                          NavigationRailDestination(
-                            icon: Icon(Icons.file_upload),
-                            selectedIcon: Icon(Icons.file_upload),
-                            label: Text('传输'),
-                          ),
-                          NavigationRailDestination(
-                            icon: Icon(Icons.history),
-                            selectedIcon: Icon(Icons.history),
-                            label: Text('历史'),
-                          ),
-                          NavigationRailDestination(
-                            icon: Icon(Icons.settings),
-                            selectedIcon: Icon(Icons.settings),
-                            label: Text('设置'),
+                            labelType: NavigationRailLabelType.none,
+                            leading: Padding(
+                              padding: const EdgeInsets.all(16.0),
+                              child: ValueListenableBuilder<int>(
+                                valueListenable: _progressNotifier,
+                                builder: (context, progress, child) {
+                                  if (progress != 0 && progress != 100) {
+                                    return Text('进度: $progress%',
+                                        style: TextStyle(
+                                            fontSize: 24,
+                                            fontWeight: FontWeight.bold));
+                                  } else {
+                                    return Text('MST上传',
+                                        style: TextStyle(
+                                            fontSize: 24,
+                                            fontWeight: FontWeight.bold));
+                                  }
+                                },
+                              ),
+                            ),
+                            destinations: [
+                              NavigationRailDestination(
+                                icon: Icon(Icons.file_upload),
+                                selectedIcon: Icon(Icons.file_upload),
+                                label: Text('传输'),
+                              ),
+                              NavigationRailDestination(
+                                icon: Icon(Icons.history),
+                                selectedIcon: Icon(Icons.history),
+                                label: Text('历史'),
+                              ),
+                              NavigationRailDestination(
+                                icon: Icon(Icons.settings),
+                                selectedIcon: Icon(Icons.settings),
+                                label: Text('设置'),
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -228,3 +236,4 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 }
+

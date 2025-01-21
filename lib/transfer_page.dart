@@ -34,7 +34,7 @@ class _TransferPageState extends State<TransferPage> {
     _isDatabaseConnectedNotifier = ValueNotifier<bool>(false);
     _isPausedNotifier = ValueNotifier<bool>(false);
     _checkDatabaseConnection();
-    _connectionCheckTimer = Timer.periodic(Duration(seconds: 5), (_) {
+    _connectionCheckTimer = Timer.periodic(Duration(seconds: 60), (_) {
       _checkDatabaseConnection();
     });
   }
@@ -251,8 +251,8 @@ class _TransferPageState extends State<TransferPage> {
                                 },
                               ),
                               SizedBox(height: 8),
-                              Text('地址: ${settings['databaseAddress']}'),
-                              Text('名称: ${settings['databaseName']}'),
+                              Text('ip: ${settings['databaseAddress']}'),
+                              Text('db: ${settings['databaseName']}'),
                             ],
                           ),
                         ),

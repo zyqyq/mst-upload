@@ -9,6 +9,7 @@ dependencies:
   file_picker: ^8.1.7  # 添加file_picker依赖项，并指定版本号
   mysql1: ^0.20.0
   mysql_client: ^0.0.27
+  liquid_progress_indicator_v2: ^0.5.0
 
 flutter:
   uses-material-design: true

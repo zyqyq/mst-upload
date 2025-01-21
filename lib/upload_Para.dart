@@ -115,7 +115,7 @@ Future<Map<String, dynamic>> readAndProcessFile(
 
   // 添加 show_name 和 Platform_id
   data['show_name'] = showName;
-  data['name'] = name;
+  data['name'] = showName;
   data['Platform_id'] = platformId;
 
   return data;

@@ -1,7 +1,7 @@
 {
   "sourceDataPath": "/Volumes/Macintosh HD/Users/zyqyq/Program/数据集/L1B/202408/20240801/test",
   "conversionProgramPath": "/Volumes/Macintosh HD/Users/zyqyq/Program/python/L1BM.py",
-  "syncFrequency": "22",
+  "syncFrequency": "-1",
   "databaseAddress": "127.0.0.1",
   "databasePort": "3306",
   "databasePassword": "mysecretpw",
