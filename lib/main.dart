@@ -35,7 +35,8 @@ class _MyHomePageState extends State<MyHomePage> {
   int _selectedIndex = 0;
   late final GlobalKey<SettingsPageState> _settingsPageKey;
   late final ValueNotifier<int> _countdownNotifier; // 修改: 使用 ValueNotifier<int>
-  late final ValueNotifier<int> _progressNotifier; // 新增: 使用 ValueNotifier<int> 来跟踪进度
+  late final ValueNotifier<int>
+      _progressNotifier; // 新增: 使用 ValueNotifier<int> 来跟踪进度
   late final List<Widget> _pages;
   bool _isPaused = false;
   Timer? _syncTimer; // 添加: 定义 Timer 变量来存储当前的定时器实例
@@ -48,8 +49,9 @@ class _MyHomePageState extends State<MyHomePage> {
     _progressNotifier = ValueNotifier<int>(0); // 新增: 初始化进度 ValueNotifier
     _pages = [
       TransferPage(
-          countdownNotifier: _countdownNotifier,
-          onTogglePause: _handleTogglePause,), // 新增: 传递进度 ValueNotifier
+        countdownNotifier: _countdownNotifier,
+        onTogglePause: _handleTogglePause,
+      ), // 新增: 传递进度 ValueNotifier
       HistoryPage(),
       SettingsPage(
           key: _settingsPageKey,
@@ -80,7 +82,8 @@ class _MyHomePageState extends State<MyHomePage> {
     _syncTimer = Timer.periodic(Duration(seconds: 1), (_) async {
       if (_isProcessing) {
         // 如果正在处理文件，则跳过本次回调
-        print("Skipping timer callback because processFileswithTimer is running.");
+        print(
+            "Skipping timer callback because processFileswithTimer is running.");
         return;
       }
       // 修改: 存储新的定时器实例
@@ -106,7 +109,7 @@ class _MyHomePageState extends State<MyHomePage> {
     _isProcessing = true;
     try {
       print("processFiles");
-      await processFiles(context,_progressNotifier);
+      await processFiles(context, _progressNotifier);
     } finally {
       _isProcessing = false;
     }
@@ -126,72 +129,93 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   Widget build(BuildContext context) {
-    //边栏设计
     return PopScope(
-      // 使用 PopScope 替代 WillPopScope
-      canPop: true, // 默认情况下允许返回
+      canPop: true,
       child: Builder(
         builder: (BuildContext context) {
           return Scaffold(
-            appBar: AppBar( // 新增: 添加 AppBar 来显示进度条
-              title: ValueListenableBuilder<int>(
-                valueListenable: _progressNotifier,
-                builder: (context, progress, child) {
-                  return Text('进度: $progress%');
-                },
-              ),
-            ),
             body: Row(
               children: <Widget>[
-                NavigationRail(
-                  extended: true, // 添加: 使侧边栏扩展以显示标题
-                  backgroundColor: Theme.of(context)
-                      .primaryColor
-                      .withAlpha((0.3 * 255).toInt()), // 使用主题的主色调并调整透明度
-                  selectedIndex: _selectedIndex,
-                  onDestinationSelected: (int index) async {
-                    if (_selectedIndex == 2 &&
-                        _settingsPageKey.currentState?.hasUnsavedChanges ==
-                            true) {
-                      final shouldPop = await _settingsPageKey.currentState
-                          ?.showUnsavedChangesDialog();
-                      if (shouldPop == true) {
-                        setState(() {
-                          _selectedIndex = index;
-                        });
-                      }
-                    } else {
-                      setState(() {
-                        _selectedIndex = index;
-                      });
-                    }
+                ValueListenableBuilder<int>(
+                  valueListenable: _progressNotifier,
+                  builder: (context, progress, child) {
+                    return Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.bottomCenter,
+                          end: Alignment.topCenter,
+                          colors: [
+                            Colors.blue.shade900,
+                            Colors.blue.shade100,
+                          ],
+                          stops: [
+                            progress / 100.0,
+                            1.0,
+                          ],
+                        ),
+                      ),
+                      child: NavigationRail(
+                        extended: true,
+                        selectedIndex: _selectedIndex,
+                        onDestinationSelected: (int index) async {
+                          if (_selectedIndex == 2 &&
+                              _settingsPageKey
+                                      .currentState?.hasUnsavedChanges ==
+                                  true) {
+                            final shouldPop = await _settingsPageKey
+                                .currentState
+                                ?.showUnsavedChangesDialog();
+                            if (shouldPop == true) {
+                              setState(() {
+                                _selectedIndex = index;
+                              });
+                            }
+                          } else {
+                            setState(() {
+                              _selectedIndex = index;
+                            });
+                          }
+                        },
+                        labelType: NavigationRailLabelType.none,
+                        leading: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: ValueListenableBuilder<int>(
+                            valueListenable: _progressNotifier,
+                            builder: (context, progress, child) {
+                              if (progress != 0 && progress != 100) {
+                                return Text('进度: $progress%',
+                                    style: TextStyle(
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.bold));
+                              } else {
+                                return Text('MST上传',
+                                    style: TextStyle(
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.bold));
+                              }
+                            },
+                          ),
+                        ),
+                        destinations: [
+                          NavigationRailDestination(
+                            icon: Icon(Icons.file_upload),
+                            selectedIcon: Icon(Icons.file_upload),
+                            label: Text('传输'),
+                          ),
+                          NavigationRailDestination(
+                            icon: Icon(Icons.history),
+                            selectedIcon: Icon(Icons.history),
+                            label: Text('历史'),
+                          ),
+                          NavigationRailDestination(
+                            icon: Icon(Icons.settings),
+                            selectedIcon: Icon(Icons.settings),
+                            label: Text('设置'),
+                          ),
+                        ],
+                      ),
+                    );
                   },
-                  labelType: NavigationRailLabelType
-                      .none, // 修改: 将 labelType 设置为 NavigationRailLabelType.none
-                  leading: Padding(
-                    // 添加: 使用 leading 参数来添加标题
-                    padding: const EdgeInsets.all(16.0),
-                    child: Text('MST上传',
-                        style: TextStyle(
-                            fontSize: 24, fontWeight: FontWeight.bold)),
-                  ),
-                  destinations: [
-                    NavigationRailDestination(
-                      icon: Icon(Icons.file_upload),
-                      selectedIcon: Icon(Icons.file_upload),
-                      label: Text('传输'),
-                    ),
-                    NavigationRailDestination(
-                      icon: Icon(Icons.history),
-                      selectedIcon: Icon(Icons.history),
-                      label: Text('历史'),
-                    ),
-                    NavigationRailDestination(
-                      icon: Icon(Icons.settings),
-                      selectedIcon: Icon(Icons.settings),
-                      label: Text('设置'),
-                    ),
-                  ],
                 ),
                 Expanded(
                   child: _pages[_selectedIndex],
