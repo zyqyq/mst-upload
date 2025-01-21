@@ -24,6 +24,8 @@ class MyApp extends StatelessWidget {
   }
 }
 
+bool _isProcessing = false;
+
 class MyHomePage extends StatefulWidget {
   @override
   _MyHomePageState createState() => _MyHomePageState();
@@ -74,6 +76,11 @@ class _MyHomePageState extends State<MyHomePage> {
     int _remainingSeconds = syncFrequency * 60;
     _countdownNotifier.value = _remainingSeconds; // 修改: 初始化倒计时
     _syncTimer = Timer.periodic(Duration(seconds: 1), (_) async {
+      if (_isProcessing) {
+        // 如果正在处理文件，则跳过本次回调
+        print("Skipping timer callback because processFileswithTimer is running.");
+        return;
+      }
       // 修改: 存储新的定时器实例
       //print(_countdownNotifier.value);
       if (!_isPaused && _remainingSeconds > 0 && _countdownNotifier.value > 0) {
@@ -81,6 +88,9 @@ class _MyHomePageState extends State<MyHomePage> {
         _remainingSeconds--;
         _countdownNotifier.value = _remainingSeconds; // 修改: 更新 ValueNotifier
       } else if (_remainingSeconds == 0 || _countdownNotifier.value == 0) {
+        _remainingSeconds == 0;
+        _countdownNotifier.value == 0;
+        print("processFileswithTimer");
         await processFileswithTimer();
         _remainingSeconds = syncFrequency * 60;
         _countdownNotifier.value = _remainingSeconds; // 修改: 重置 ValueNotifier
@@ -90,7 +100,14 @@ class _MyHomePageState extends State<MyHomePage> {
 
   Future<void> processFileswithTimer() async {
     // 执行文件同步操作
-    await processFiles(context);
+    if (_isProcessing) return; // 如果已经在处理，则直接返回
+    _isProcessing = true;
+    try {
+      print("processFiles");
+      await processFiles(context);
+    } finally {
+      _isProcessing = false;
+    }
   }
 
   void _handleTogglePause(bool isPaused) {

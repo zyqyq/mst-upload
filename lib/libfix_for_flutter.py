@@ -526,8 +526,8 @@ if __name__ == "__main__":
         processed_data = np.concatenate((processed_low_height_data, processed_high_height_data), axis=0)
     else:
         processed_data = processed_low_height_data.copy()
-    count0 = len(processed_data)
-    print(count0, end="")
+    count0 = len(processed_data);
+    #print(count0, end="")
 
     if processed_data.size == 0:
         updated_data, aftfactor = [], -1

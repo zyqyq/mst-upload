@@ -32,6 +32,7 @@ String getRelativeFilePath(String filePath, String folderPath, String mid) {
 
 // 遍历文件夹并处理数据
 Future<void> processFiles(BuildContext context) async {
+  print("开始处理文件");
   // 修改: 添加 BuildContext 参数
   // 读取设置
   final settings = await _readSettings();
@@ -89,14 +90,17 @@ Future<void> processFiles(BuildContext context) async {
   // 递归遍历文件夹
   await _traverseDirectory(folderPath, conn, fileList, name, platformId);
 
-    // 更新总文件数
+  // 更新总文件数
   int totalFiles = fileList.length;
   int processedFiles = 0;
 
+  //print(fileList);
+
   // 处理文件列表中的文件
   for (final filePath in fileList) {
+    print(filePath);
     if (filePath.contains('L1B')) {
-      await uploadL1B(filePath, conn, showName, name, platformId, settings);
+      //await uploadL1B(filePath, conn, showName, name, platformId, settings);
       final newFilePath1 = getRelativeFilePath(filePath, folderPath, 'L1B');
       final newFileDir1 = path.dirname(newFilePath1);
       await Directory(newFileDir1).create(recursive: true);
@@ -112,13 +116,17 @@ Future<void> processFiles(BuildContext context) async {
             '/Library/Developer/CommandLineTools/usr/bin/python3',
             ['lib/libfix_for_flutter.py', filePath, newFilePath1]);
         // 打印脚本的输出
-        print('stdout: ${result.stdout}');
-        print('stderr: ${result.stderr}');
+        if (result.stdout.isNotEmpty) {
+          print('stdout: ${result.stdout}');
+        }
+        if (result.stderr.isNotEmpty) {
+          print('stderr: ${result.stderr}');
+        }
       } catch (e) {
         // 处理异常
         print('Error running Python script: $e');
       }
-      await uploadL1B(newFilePath1, conn, showName, name, platformId,settings);
+      //await uploadL1B(newFilePath1, conn, showName, name, platformId, settings);
 
       try {
         // 启动 Python 进程并传递参数
@@ -126,16 +134,23 @@ Future<void> processFiles(BuildContext context) async {
             '/Library/Developer/CommandLineTools/usr/bin/python3',
             ['lib/change_for_flutter.py', newFilePath1, newFilePath2]);
         // 打印脚本的输出
-        print('stdout: ${result.stdout}');
-        print('stderr: ${result.stderr}');
+        if (result.stdout.isNotEmpty) {
+          print('stdout: ${result.stdout}');
+        }
+        if (result.stderr.isNotEmpty) {
+          print('stderr: ${result.stderr}');
+        }
       } catch (e) {
         // 处理异常
         print('Error running Python script: $e');
       }
-      await uploadL2(newFilePath2, conn, showName, name, platformId, settings); // 修改: 传递 settings 参数
-      await uploadPara(newFilePath2, conn, showName, name, platformId, settings['DeviceTableNme']);
+      await uploadL2(newFilePath2, conn, showName, name, platformId,
+          settings); // 修改: 传递 settings 参数
+      await uploadPara(newFilePath2, conn, showName, name, platformId,
+          settings['DeviceTableNme']);
     } else if (filePath.contains('L2')) {
-      await uploadL2(filePath, conn, showName, name, platformId, settings); // 修改: 传递 settings 参数
+      await uploadL2(filePath, conn, showName, name, platformId,
+          settings); // 修改: 传递 settings 参数
     }
     // 更新进度
     processedFiles++;

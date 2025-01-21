@@ -42,7 +42,7 @@ Future<Map<String, dynamic>> readAndProcessFile(
   final dateTimeStr = fileName.split('_')[5]; // 修改: 提取正确的日期时间部分
   final dt = DateTime.parse('${dateTimeStr.substring(0, 4)}-${dateTimeStr.substring(4, 6)}-${dateTimeStr.substring(6, 8)}T${dateTimeStr.substring(8, 10)}:${dateTimeStr.substring(10, 12)}:${dateTimeStr.substring(12, 14)}');
   final dtStr = dt.toIso8601String();
-  print("正在处理:$fileName");
+  //print("正在处理:$fileName");
 
   // 跳过前34行
   for (int i = 34; i < lines.length; i++) {
