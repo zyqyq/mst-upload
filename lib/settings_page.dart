@@ -3,7 +3,8 @@ import 'package:file_picker/file_picker.dart'; // 添加文件选择器库
 import 'dart:io'; // 添加dart:io库以使用Directory和File类
 import 'dart:convert'; // 添加dart:convert库以使用json.decode和json.encode
 import 'package:mysql1/mysql1.dart'; // 添加 mysql1 库以进行数据库连接
-//import 'main.dart';
+import 'package:path/path.dart' as path;
+import 'main.dart';
 
 class SettingsPage extends StatefulWidget {
   final Key? key;
@@ -41,6 +42,10 @@ class SettingsPageState extends State<SettingsPage> {
       TextEditingController(); // 新增 Platform_id 输入框控制器
   final TextEditingController _nameController =
       TextEditingController(); // 新增 name 输入框控制器
+  final TextEditingController _pythonInterpreterPathController =
+      TextEditingController(); // 新增 Python解释器地址输入框控制器
+  final TextEditingController _optimizationProgramPathController =
+      TextEditingController(); // 新增 优化程序地址输入框控制器
   bool _isPasswordVisible = false; // 添加标志来跟踪密码是否可见
 
   bool _hasUnsavedChanges = false; // 添加标志来跟踪是否有未保存的更改
@@ -73,6 +78,10 @@ class SettingsPageState extends State<SettingsPage> {
         _platformIdController.text =
             settings['Platform_id'] ?? ''; // 加载 Platform_id
         _nameController.text = settings['name'] ?? ''; // 加载 name
+        _pythonInterpreterPathController.text =
+            settings['pythonInterpreterPath'] ?? ''; // 加载 Python解释器地址
+        _optimizationProgramPathController.text =
+            settings['optimizationProgramPath'] ?? ''; // 加载 优化程序地址
         _hasUnsavedChanges = false; // 重置标志
       });
     }
@@ -92,6 +101,8 @@ class SettingsPageState extends State<SettingsPage> {
       'show_name': _showNameController.text, // 保存 show_name
       'Platform_id': _platformIdController.text, // 保存 Platform_id
       'name': _nameController.text, // 保存 name
+      'pythonInterpreterPath': _pythonInterpreterPathController.text, // 保存 Python解释器地址
+      'optimizationProgramPath': _optimizationProgramPathController.text, // 保存 优化程序地址
     };
 
     // 读取旧的同步频率
@@ -139,15 +150,31 @@ class SettingsPageState extends State<SettingsPage> {
   void _validatePaths() {
     final sourceDataPath = _sourceDataPathController.text;
     final conversionProgramPath = _conversionProgramPathController.text;
+    final pythonInterpreterPath = _pythonInterpreterPathController.text;
+    final optimizationProgramPath = _optimizationProgramPathController.text;
 
     if (sourceDataPath.isNotEmpty && !Directory(sourceDataPath).existsSync()) {
       _showErrorDialog('源数据地址不是一个有效的文件夹路径');
       return;
     }
 
+    if (pythonInterpreterPath.isNotEmpty &&
+      !File(pythonInterpreterPath).existsSync()) {
+    _showErrorDialog('Python解释器地址不是一个有效的可执行文件');
+    return;
+    }
+
     if (conversionProgramPath.isNotEmpty &&
         !File(conversionProgramPath).existsSync()) {
+      if (!conversionProgramPath.endsWith('.py')) {
       _showErrorDialog('转换程序地址不是一个有效的 .py 文件');
+      return;
+    }
+
+    if (optimizationProgramPath.isNotEmpty &&
+        !File(optimizationProgramPath).existsSync()) {
+      if (!optimizationProgramPath.endsWith('.py')) {
+      _showErrorDialog('优化程序地址不是一个有效的 .py 文件');
       return;
     }
 
@@ -326,7 +353,96 @@ class SettingsPageState extends State<SettingsPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Text('转换程序地址',
+                  Text('程序路径配置',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)), // 统一的标题
+                  SizedBox(height: 8),
+                  Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: TextFormField(
+                          controller: _pythonInterpreterPathController,
+                          decoration: InputDecoration(
+                            labelText: 'Python解释器路径',
+                            border: OutlineInputBorder(),
+                          ),
+                          onChanged: (value) =>
+                              setState(() => _hasUnsavedChanges = true), // 设置标志
+                        ),
+                      ),
+                      SizedBox(width: 8),
+                      SizedBox(
+                        height: 56, // 设置按钮高度与输入框相同
+                        child: ElevatedButton(
+                          onPressed: () =>
+                              _selectFile(_pythonInterpreterPathController),
+                          child: Text('选择文件'),
+                        ),
+                      ),
+                    ],
+                  ), 
+                  SizedBox(height: 8),
+                  Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: TextFormField(
+                          controller: _conversionProgramPathController,
+                          decoration: InputDecoration(
+                            labelText: '转换程序地址',
+                            border: OutlineInputBorder(),
+                          ),
+                          onChanged: (value) =>
+                              setState(() => _hasUnsavedChanges = true), // 设置标志
+                        ),
+                      ),
+                      SizedBox(width: 8),
+                      SizedBox(
+                        height: 56, // 设置按钮高度与输入框相同
+                        child: ElevatedButton(
+                          onPressed: () =>
+                              _selectFile(_conversionProgramPathController),
+                          child: Text('选择文件'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 8),
+                  Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: TextFormField(
+                          controller: _optimizationProgramPathController,
+                          decoration: InputDecoration(
+                            labelText: '优化程序地址',
+                            border: OutlineInputBorder(),
+                          ),
+                          onChanged: (value) =>
+                              setState(() => _hasUnsavedChanges = true), // 设置标志
+                        ),
+                      ),
+                      SizedBox(width: 8),
+                      SizedBox(
+                        height: 56, // 设置按钮高度与输入框相同
+                        child: ElevatedButton(
+                          onPressed: () =>
+                              _selectFile(_optimizationProgramPathController),
+                          child: Text('选择文件'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          SizedBox(height: 10), // 添加间距
+          Card(
+            child: Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text('Python解释器地址',
                       style:
                           TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   SizedBox(height: 8),
@@ -334,7 +450,32 @@ class SettingsPageState extends State<SettingsPage> {
                     children: <Widget>[
                       Expanded(
                         child: TextFormField(
-                          controller: _conversionProgramPathController,
+                          controller: _pythonInterpreterPathController,
+                          decoration: InputDecoration(
+                            labelText: 'Python解释器路径',
+                            border: OutlineInputBorder(),
+                          ),
+                          onChanged: (value) =>
+                              setState(() => _hasUnsavedChanges = true), // 设置标志
+                        ),
+                      ),
+                      SizedBox(width: 8),
+                      SizedBox(
+                        height: 56, // 设置按钮高度与输入框相同
+                        child: ElevatedButton(
+                          onPressed: () =>
+                              _selectFile(_pythonInterpreterPathController),
+                          child: Text('选择文件'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 10), // 添加间距
+                  Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: TextFormField(
+                          controller: _optimizationProgramPathController,
                           decoration: InputDecoration(
                             labelText: 'Python文件路径',
                             border: OutlineInputBorder(),
@@ -348,7 +489,7 @@ class SettingsPageState extends State<SettingsPage> {
                         height: 56, // 设置按钮高度与输入框相同
                         child: ElevatedButton(
                           onPressed: () =>
-                              _selectFile(_conversionProgramPathController),
+                              _selectFile(_optimizationProgramPathController),
                           child: Text('选择文件'),
                         ),
                       ),
