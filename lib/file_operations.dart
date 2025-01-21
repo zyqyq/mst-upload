@@ -8,6 +8,9 @@ import 'upload_L1B.dart';
 import 'upload_L2.dart';
 import 'dart:io';
 
+// 新增: 定义日志文件路径
+final logFilePath = 'process_log.txt';
+
 // 定义 _readSettings 方法
 Future<Map<String, dynamic>> _readSettings() async {
   final settingsFile = File('settings.json');
@@ -168,6 +171,16 @@ Future<void> processFiles(
   // 计算并打印程序运行时间
   final runTime = endTime.difference(startTime).inMilliseconds;
   print('所有文件处理完成，程序运行时间：${runTime / 1000.0}秒');
+
+  // 新增: 记录日志信息
+  final logContent = '''
+${startTime.toIso8601String()} 处理文件总数: ${fileList.length} 程序运行时间: ${runTime / 1000.0}秒
+处理文件列表: ${fileList.join(', ')}
+  ''';
+
+  // 新增: 将日志信息写入文件
+  final logFile = File(logFilePath);
+  await logFile.writeAsString(logContent, mode: FileMode.append);
 
   progressNotifier.value = 0;
 }
