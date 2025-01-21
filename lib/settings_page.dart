@@ -338,14 +338,17 @@ class SettingsPageState extends State<SettingsPage> {
                   Row(
                     children: <Widget>[
                       Expanded(
-                        child: TextFormField(
-                          controller: _sourceDataPathController,
-                          decoration: InputDecoration(
-                            labelText: '文件夹路径',
-                            border: OutlineInputBorder(),
+                        child: Tooltip( // 添加 Tooltip 小部件
+                          message: _sourceDataPathController.text, // 设置提示信息为输入框内容
+                          child: TextFormField(
+                            controller: _sourceDataPathController,
+                            decoration: InputDecoration(
+                              labelText: '文件夹路径',
+                              border: OutlineInputBorder(),
+                            ),
+                            onChanged: (value) =>
+                                setState(() => _hasUnsavedChanges = true), // 设置标志
                           ),
-                          onChanged: (value) =>
-                              setState(() => _hasUnsavedChanges = true), // 设置标志
                         ),
                       ),
                       SizedBox(width: 8),
@@ -376,14 +379,17 @@ class SettingsPageState extends State<SettingsPage> {
                   Row(
                     children: <Widget>[
                       Expanded(
-                        child: TextFormField(
-                          controller: _pythonInterpreterPathController,
-                          decoration: InputDecoration(
-                            labelText: 'Python解释器路径',
-                            border: OutlineInputBorder(),
+                        child: Tooltip( // 添加 Tooltip 小部件
+                          message: _pythonInterpreterPathController.text, // 设置提示信息为输入框内容
+                          child: TextFormField(
+                            controller: _pythonInterpreterPathController,
+                            decoration: InputDecoration(
+                              labelText: 'Python解释器路径',
+                              border: OutlineInputBorder(),
+                            ),
+                            onChanged: (value) =>
+                                setState(() => _hasUnsavedChanges = true), // 设置标志
                           ),
-                          onChanged: (value) =>
-                              setState(() => _hasUnsavedChanges = true), // 设置标志
                         ),
                       ),
                       SizedBox(width: 8),
@@ -401,14 +407,17 @@ class SettingsPageState extends State<SettingsPage> {
                   Row(
                     children: <Widget>[
                       Expanded(
-                        child: TextFormField(
-                          controller: _conversionProgramPathController,
-                          decoration: InputDecoration(
-                            labelText: '转换程序地址',
-                            border: OutlineInputBorder(),
+                        child: Tooltip( // 添加 Tooltip 小部件
+                          message: _conversionProgramPathController.text, // 设置提示信息为输入框内容
+                          child: TextFormField(
+                            controller: _conversionProgramPathController,
+                            decoration: InputDecoration(
+                              labelText: '转换程序地址',
+                              border: OutlineInputBorder(),
+                            ),
+                            onChanged: (value) =>
+                                setState(() => _hasUnsavedChanges = true), // 设置标志
                           ),
-                          onChanged: (value) =>
-                              setState(() => _hasUnsavedChanges = true), // 设置标志
                         ),
                       ),
                       SizedBox(width: 8),
@@ -426,14 +435,17 @@ class SettingsPageState extends State<SettingsPage> {
                   Row(
                     children: <Widget>[
                       Expanded(
-                        child: TextFormField(
-                          controller: _optimizationProgramPathController,
-                          decoration: InputDecoration(
-                            labelText: '优化程序地址',
-                            border: OutlineInputBorder(),
+                        child: Tooltip( // 添加 Tooltip 小部件
+                          message: _optimizationProgramPathController.text, // 设置提示信息为输入框内容
+                          child: TextFormField(
+                            controller: _optimizationProgramPathController,
+                            decoration: InputDecoration(
+                              labelText: '优化程序地址',
+                              border: OutlineInputBorder(),
+                            ),
+                            onChanged: (value) =>
+                                setState(() => _hasUnsavedChanges = true), // 设置标志
                           ),
-                          onChanged: (value) =>
-                              setState(() => _hasUnsavedChanges = true), // 设置标志
                         ),
                       ),
                       SizedBox(width: 8),
