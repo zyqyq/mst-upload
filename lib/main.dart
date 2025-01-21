@@ -35,6 +35,7 @@ class _MyHomePageState extends State<MyHomePage> {
   int _selectedIndex = 0;
   late final GlobalKey<SettingsPageState> _settingsPageKey;
   late final ValueNotifier<int> _countdownNotifier; // 修改: 使用 ValueNotifier<int>
+  late final ValueNotifier<int> _progressNotifier; // 新增: 使用 ValueNotifier<int> 来跟踪进度
   late final List<Widget> _pages;
   bool _isPaused = false;
   Timer? _syncTimer; // 添加: 定义 Timer 变量来存储当前的定时器实例
@@ -44,10 +45,11 @@ class _MyHomePageState extends State<MyHomePage> {
     super.initState();
     _settingsPageKey = GlobalKey<SettingsPageState>();
     _countdownNotifier = ValueNotifier<int>(0); // 修改: 初始化 ValueNotifier
+    _progressNotifier = ValueNotifier<int>(0); // 新增: 初始化进度 ValueNotifier
     _pages = [
       TransferPage(
           countdownNotifier: _countdownNotifier,
-          onTogglePause: _handleTogglePause), // 修改: 使用 ValueNotifier
+          onTogglePause: _handleTogglePause,), // 新增: 传递进度 ValueNotifier
       HistoryPage(),
       SettingsPage(
           key: _settingsPageKey,
@@ -104,7 +106,7 @@ class _MyHomePageState extends State<MyHomePage> {
     _isProcessing = true;
     try {
       print("processFiles");
-      await processFiles(context);
+      await processFiles(context,_progressNotifier);
     } finally {
       _isProcessing = false;
     }
@@ -131,6 +133,14 @@ class _MyHomePageState extends State<MyHomePage> {
       child: Builder(
         builder: (BuildContext context) {
           return Scaffold(
+            appBar: AppBar( // 新增: 添加 AppBar 来显示进度条
+              title: ValueListenableBuilder<int>(
+                valueListenable: _progressNotifier,
+                builder: (context, progress, child) {
+                  return Text('进度: $progress%');
+                },
+              ),
+            ),
             body: Row(
               children: <Widget>[
                 NavigationRail(

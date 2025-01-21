@@ -31,7 +31,7 @@ String getRelativeFilePath(String filePath, String folderPath, String mid) {
 }
 
 // 遍历文件夹并处理数据
-Future<void> processFiles(BuildContext context) async {
+Future<void> processFiles(BuildContext context,ValueNotifier<int> progressNotifier) async {
   print("开始处理文件");
   // 修改: 添加 BuildContext 参数
   // 读取设置
@@ -100,7 +100,7 @@ Future<void> processFiles(BuildContext context) async {
   for (final filePath in fileList) {
     print(filePath);
     if (filePath.contains('L1B')) {
-      //await uploadL1B(filePath, conn, showName, name, platformId, settings);
+      await uploadL1B(filePath, conn, showName, name, platformId, settings);
       final newFilePath1 = getRelativeFilePath(filePath, folderPath, 'L1B');
       final newFileDir1 = path.dirname(newFilePath1);
       await Directory(newFileDir1).create(recursive: true);
@@ -126,7 +126,7 @@ Future<void> processFiles(BuildContext context) async {
         // 处理异常
         print('Error running Python script: $e');
       }
-      //await uploadL1B(newFilePath1, conn, showName, name, platformId, settings);
+      await uploadL1B(newFilePath1, conn, showName, name, platformId, settings);
 
       try {
         // 启动 Python 进程并传递参数
@@ -154,7 +154,7 @@ Future<void> processFiles(BuildContext context) async {
     }
     // 更新进度
     processedFiles++;
-    //progressNotifier.value = (processedFiles * 100 / totalFiles).round();
+    progressNotifier.value = (processedFiles * 100 / totalFiles).round();
   }
 
   // 关闭游标和连接
