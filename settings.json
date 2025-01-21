@@ -1,6 +1,6 @@
 {
   "sourceDataPath": "/Volumes/Macintosh HD/Users/zyqyq/Program/数据集/L1B/202408/20240801/test",
-  "conversionProgramPath": "/Volumes/Macintosh HD/Users/zyqyq/Program/python/L1BM.py",
+  "conversionProgramPath": "lib/change_for_flutter.py",
   "syncFrequency": "-1",
   "databaseAddress": "127.0.0.1",
   "databasePort": "3306",
@@ -18,5 +18,7 @@
   "L1BSTProcessedTableName": "smos_radar_qzgcz_L1BSTProcessed",
   "L1BMTableName": "smos_radar_qzgcz_L1BM",
   "L1BMProcessedTableName": "smos_radar_qzgcz_L1BMProcessed",
-  "DeviceTableNme": "smos_radar_qzgcz_device2"
+  "DeviceTableNme": "smos_radar_qzgcz_device2",
+  "pythonInterpreterPath": "/Library/Developer/CommandLineTools/usr/bin/python3",
+  "optimizationProgramPath": "lib/libfix_for_flutter.py"
 }

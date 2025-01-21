@@ -115,8 +115,8 @@ Future<void> processFiles(
       try {
         // 启动 Python 进程并传递参数
         final result = await Process.run(
-            '/Library/Developer/CommandLineTools/usr/bin/python3',
-            ['lib/libfix_for_flutter.py', filePath, newFilePath1]);
+            settings['pythonInterpreterPath'],
+            [settings['optimizationProgramPath'], filePath, newFilePath1]);
         // 打印脚本的输出
         if (result.stdout.isNotEmpty) {
           print('stdout: ${result.stdout}');
@@ -133,8 +133,8 @@ Future<void> processFiles(
       try {
         // 启动 Python 进程并传递参数
         final result = await Process.run(
-            '/Library/Developer/CommandLineTools/usr/bin/python3',
-            ['lib/change_for_flutter.py', newFilePath1, newFilePath2]);
+            settings['pythonInterpreterPath'],
+            [settings['conversionProgramPath'], newFilePath1, newFilePath2]);
         // 打印脚本的输出
         if (result.stdout.isNotEmpty) {
           print('stdout: ${result.stdout}');

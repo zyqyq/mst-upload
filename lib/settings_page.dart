@@ -5,6 +5,7 @@ import 'dart:convert'; // 添加dart:convert库以使用json.decode和json.encod
 import 'package:mysql1/mysql1.dart'; // 添加 mysql1 库以进行数据库连接
 import 'package:path/path.dart' as path;
 import 'main.dart';
+import 'package:process_run/shell_run.dart';
 
 class SettingsPage extends StatefulWidget {
   final Key? key;
@@ -147,7 +148,7 @@ class SettingsPageState extends State<SettingsPage> {
     }
   }
 
-  void _validatePaths() {
+  void _validatePaths() async{
     final sourceDataPath = _sourceDataPathController.text;
     final conversionProgramPath = _conversionProgramPathController.text;
     final pythonInterpreterPath = _pythonInterpreterPathController.text;
@@ -158,10 +159,24 @@ class SettingsPageState extends State<SettingsPage> {
       return;
     }
 
-    if (pythonInterpreterPath.isNotEmpty &&
-      !File(pythonInterpreterPath).existsSync()) {
-    _showErrorDialog('Python解释器地址不是一个有效的可执行文件');
-    return;
+  if (pythonInterpreterPath.isNotEmpty) {
+      try {
+      final shell = Shell();
+      final result = await shell.run('$pythonInterpreterPath --version');
+      if (result.isEmpty) {
+        _showErrorDialog('Python解释器地址不是一个有效的 Python 解释器');
+        return;
+      }
+      // 假设第一个结果是有效的
+      final results = result.first;
+      if (results.exitCode != 0) {
+        _showErrorDialog('Python解释器地址不是一个有效的 Python 解释器');
+        return;
+      }
+      } catch (e) {
+        _showErrorDialog('Python解释器地址不是一个有效的 Python 解释器');
+        return;
+      }
     }
 
     if (conversionProgramPath.isNotEmpty &&
@@ -169,6 +184,7 @@ class SettingsPageState extends State<SettingsPage> {
       if (!conversionProgramPath.endsWith('.py')) {
       _showErrorDialog('转换程序地址不是一个有效的 .py 文件');
       return;
+      }
     }
 
     if (optimizationProgramPath.isNotEmpty &&
@@ -176,6 +192,7 @@ class SettingsPageState extends State<SettingsPage> {
       if (!optimizationProgramPath.endsWith('.py')) {
       _showErrorDialog('优化程序地址不是一个有效的 .py 文件');
       return;
+      }
     }
 
     if (_syncFrequencyController.text.isNotEmpty) {
@@ -353,7 +370,7 @@ class SettingsPageState extends State<SettingsPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Text('程序路径配置',
+                  Text('python外接配置',
                       style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)), // 统一的标题
                   SizedBox(height: 8),
                   Row(
@@ -434,102 +451,7 @@ class SettingsPageState extends State<SettingsPage> {
               ),
             ),
           ),
-
-          SizedBox(height: 10), // 添加间距
-          Card(
-            child: Padding(
-              padding: EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text('Python解释器地址',
-                      style:
-                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  SizedBox(height: 8),
-                  Row(
-                    children: <Widget>[
-                      Expanded(
-                        child: TextFormField(
-                          controller: _pythonInterpreterPathController,
-                          decoration: InputDecoration(
-                            labelText: 'Python解释器路径',
-                            border: OutlineInputBorder(),
-                          ),
-                          onChanged: (value) =>
-                              setState(() => _hasUnsavedChanges = true), // 设置标志
-                        ),
-                      ),
-                      SizedBox(width: 8),
-                      SizedBox(
-                        height: 56, // 设置按钮高度与输入框相同
-                        child: ElevatedButton(
-                          onPressed: () =>
-                              _selectFile(_pythonInterpreterPathController),
-                          child: Text('选择文件'),
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 10), // 添加间距
-                  Row(
-                    children: <Widget>[
-                      Expanded(
-                        child: TextFormField(
-                          controller: _optimizationProgramPathController,
-                          decoration: InputDecoration(
-                            labelText: 'Python文件路径',
-                            border: OutlineInputBorder(),
-                          ),
-                          onChanged: (value) =>
-                              setState(() => _hasUnsavedChanges = true), // 设置标志
-                        ),
-                      ),
-                      SizedBox(width: 8),
-                      SizedBox(
-                        height: 56, // 设置按钮高度与输入框相同
-                        child: ElevatedButton(
-                          onPressed: () =>
-                              _selectFile(_optimizationProgramPathController),
-                          child: Text('选择文件'),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-          SizedBox(height: 10), // 添加间距
-          Card(
-            child: Padding(
-              padding: EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text('同步频率',
-                      style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold)), // 修改: 同步频率
-                  SizedBox(height: 8),
-                  Row(
-                    children: <Widget>[
-                      Expanded(
-                        child: TextFormField(
-                          controller: _syncFrequencyController, // 修改: 同步频率控制器
-                          decoration: InputDecoration(
-                            labelText: 'n分钟一次（-1则手动模式）', // 修改: 后缀解释
-                            border: OutlineInputBorder(),
-                          ),
-                          onChanged: (value) =>
-                              setState(() => _hasUnsavedChanges = true), // 设置标志
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
+          
           SizedBox(height: 10), // 添加间距
           Card(
             child: Padding(
