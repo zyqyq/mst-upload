@@ -43,15 +43,15 @@ Future<void> processFile(
     Map<String, dynamic> settings) async {
   print(filePath);
   if (filePath.contains('L1B')) {
-    print("a");
+    //print("a");
     await uploadL1B(filePath, conn, showName, name, platformId, settings);
-    print("b");
+    //print("b");
     final newFilePath1 = getRelativeFilePath(filePath, folderPath, 'L1B');
     final newFileDir1 = path.dirname(newFilePath1);
     await Directory(newFileDir1).create(recursive: true);
 
     final newFilePath2 = getRelativeFilePath(filePath, folderPath, 'L2');
-    print(newFilePath2);
+    //print(newFilePath2);
     final newFileDir2 = path.dirname(newFilePath2);
     await Directory(newFileDir2).create(recursive: true);
 
@@ -107,11 +107,20 @@ Future<void> processFilesInParallel(
     Map<String, dynamic> settings,
     ValueNotifier<int> progressNotifier,
     int processedFiles) async {
+  final int maxIsolates = 5; // 设置最大线程数
   final List<Isolate> isolates = [];
   final List<ReceivePort> receivePorts = [];
   int totalFiles = fileList.length;
+  int activeIsolates = 0;
 
   for (final filePath in fileList) {
+    if (activeIsolates >= maxIsolates) {
+      await receivePorts[0].first; // 等待一个Isolate完成处理
+      isolates.removeAt(0).kill(priority: Isolate.immediate); // 杀死完成的Isolate
+      receivePorts.removeAt(0); // 移除对应的ReceivePort
+      activeIsolates--;
+    }
+
     final receivePort = ReceivePort();
     receivePorts.add(receivePort);
 
@@ -128,13 +137,14 @@ Future<void> processFilesInParallel(
       },
     ));
 
-    // 更新进度
-    processedFiles++;
-    progressNotifier.value = (processedFiles * 90 / totalFiles + 10).round();
+    activeIsolates++;
   }
 
   for (final receivePort in receivePorts) {
     await receivePort.first; // 等待每个Isolate完成处理
+        // 更新进度
+    processedFiles++;
+    progressNotifier.value = (processedFiles * 90 / totalFiles + 10).round();
   }
 
   for (final isolate in isolates) {

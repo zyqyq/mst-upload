@@ -26,8 +26,9 @@ class _HistoryPageState extends State<HistoryPage> {
       final lines = contents.split('\n');
       final filteredLines =
           lines.where((line) => !line.startsWith('处理文件列表')).toList();
+      // 倒序排列日志行
       setState(() {
-        _logController.text = filteredLines.join('\n');
+        _logController.text = filteredLines.reversed.toList().join('\n');
       });
     }
   }
