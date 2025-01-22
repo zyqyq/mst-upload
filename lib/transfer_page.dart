@@ -320,9 +320,9 @@ class _TransferPageState extends State<TransferPage> {
                             children: <Widget>[
                               Text('路径配置:', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                               SizedBox(height: 8),
-                              Text("源文件:${_getFileNameOrLastPath(settings['sourceDataPath'] ?? '未设置')}", overflow: TextOverflow.ellipsis),
-                              Text("优化程序:${_getFileNameOrLastPath(settings['optimizationProgramPath'] ?? '未设置')}", overflow: TextOverflow.ellipsis),
-                              Text("转换程序:${_getFileNameOrLastPath(settings['conversionProgramPath'] ?? '未设置')}", overflow: TextOverflow.ellipsis),
+                              Text(_getFileNameOrLastPath(settings['sourceDataPath'] ?? '未设置'), textAlign: TextAlign.end, overflow: TextOverflow.ellipsis),
+                              Text(_getFileNameOrLastPath(settings['optimizationProgramPath'] ?? '未设置'), textAlign: TextAlign.end, overflow: TextOverflow.ellipsis),
+                              Text(_getFileNameOrLastPath(settings['conversionProgramPath'] ?? '未设置'), textAlign: TextAlign.end, overflow: TextOverflow.ellipsis),
                             ],
                           ),
                         ),

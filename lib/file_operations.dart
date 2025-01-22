@@ -6,7 +6,7 @@ import 'upload_Para.dart';
 import 'package:flutter/material.dart';
 import 'upload_L1B.dart';
 import 'upload_L2.dart';
-import 'dart:io';
+import 'dart:isolate'; // 添加dart:isolate库以使用Isolate
 
 // 新增: 定义日志文件路径
 final logFilePath = 'process_log.txt';
@@ -31,6 +31,148 @@ String getRelativeFilePath(String filePath, String folderPath, String mid) {
   }
 
   return resultPath;
+}
+
+Future<void> processFile(
+    String filePath,
+    String folderPath,
+    MySqlConnection conn,
+    String showName,
+    String name,
+    String platformId,
+    Map<String, dynamic> settings) async {
+  print(filePath);
+  if (filePath.contains('L1B')) {
+    print("a");
+    await uploadL1B(filePath, conn, showName, name, platformId, settings);
+    print("b");
+    final newFilePath1 = getRelativeFilePath(filePath, folderPath, 'L1B');
+    final newFileDir1 = path.dirname(newFilePath1);
+    await Directory(newFileDir1).create(recursive: true);
+
+    final newFilePath2 = getRelativeFilePath(filePath, folderPath, 'L2');
+    print(newFilePath2);
+    final newFileDir2 = path.dirname(newFilePath2);
+    await Directory(newFileDir2).create(recursive: true);
+
+    try {
+      // 启动 Python 进程并传递参数
+      final result = await Process.run(settings['pythonInterpreterPath'],
+          [settings['optimizationProgramPath'], filePath, newFilePath1]);
+      // 打印脚本的输出
+      if (result.stdout.isNotEmpty) {
+        print('stdout: ${result.stdout}');
+      }
+      if (result.stderr.isNotEmpty) {
+        print('stderr: ${result.stderr}');
+      }
+    } catch (e) {
+      // 处理异常
+      print('Error running Python script: $e');
+    }
+    await uploadL1B(newFilePath1, conn, showName, name, platformId, settings);
+
+    try {
+      // 启动 Python 进程并传递参数
+      final result = await Process.run(settings['pythonInterpreterPath'],
+          [settings['conversionProgramPath'], newFilePath1, newFilePath2]);
+      // 打印脚本的输出
+      if (result.stdout.isNotEmpty) {
+        print('stdout: ${result.stdout}');
+      }
+      if (result.stderr.isNotEmpty) {
+        print('stderr: ${result.stderr}');
+      }
+    } catch (e) {
+      // 处理异常
+      print('Error running Python script: $e');
+    }
+    await uploadL2(newFilePath2, conn, showName, name, platformId,
+        settings); // 修改: 传递 settings 参数
+    await uploadPara(newFilePath2, conn, showName, name, platformId,
+        settings['DeviceTableNme']);
+  } else if (filePath.contains('L2')) {
+    await uploadL2(filePath, conn, showName, name, platformId,
+        settings); // 修改: 传递 settings 参数
+  }
+}
+
+Future<void> processFilesInParallel(
+    List<String> fileList,
+    String folderPath,
+    MySqlConnection conn,
+    String showName,
+    String name,
+    String platformId,
+    Map<String, dynamic> settings,
+    ValueNotifier<int> progressNotifier,
+    int processedFiles) async {
+  final List<Isolate> isolates = [];
+  final List<ReceivePort> receivePorts = [];
+  int totalFiles = fileList.length;
+
+  for (final filePath in fileList) {
+    final receivePort = ReceivePort();
+    receivePorts.add(receivePort);
+
+    isolates.add(await Isolate.spawn(
+      _processFileIsolate,
+      {
+        'filePath': filePath,
+        'sendPort': receivePort.sendPort,
+        'folderPath': folderPath,
+        'showName': showName,
+        'name': name,
+        'platformId': platformId,
+        'settings': settings,
+      },
+    ));
+
+    // 更新进度
+    processedFiles++;
+    progressNotifier.value = (processedFiles * 90 / totalFiles + 10).round();
+  }
+
+  for (final receivePort in receivePorts) {
+    await receivePort.first; // 等待每个Isolate完成处理
+  }
+
+  for (final isolate in isolates) {
+    isolate.kill(priority: Isolate.immediate); // 杀死Isolate
+  }
+}
+
+void _processFileIsolate(Map<String, dynamic> data) async {
+  final filePath = data['filePath'] as String;
+  final sendPort = data['sendPort'] as SendPort;
+  final folderPath = data['folderPath'] as String;
+  final showName = data['showName'] as String;
+  final name = data['name'] as String;
+  final platformId = data['platformId'] as String;
+  final settings = data['settings'] as Map<String, dynamic>;
+
+  MySqlConnection? conn;
+  try {
+    final dbParams = ConnectionSettings(
+      host: settings['databaseAddress'],
+      port: int.parse(settings['databasePort']),
+      user: settings['databaseUsername'],
+      password: settings['databasePassword'],
+      db: settings['databaseName'],
+    );
+    conn = await MySqlConnection.connect(dbParams);
+    await conn.query('USE ${settings['databaseName']}');
+  } catch (e) {
+    print('无法连接到数据库: $e');
+    sendPort.send(null); // 发送完成信号
+    return;
+  }
+
+  await processFile(filePath, folderPath, conn, showName, name, platformId,
+      settings); // 处理单个文件
+
+  await conn.close(); // 关闭数据库连接
+  sendPort.send(null); // 发送完成信号
 }
 
 // 遍历文件夹并处理数据
@@ -96,71 +238,13 @@ Future<void> processFiles(
   await _traverseDirectory(folderPath, conn, fileList, name, platformId);
   progressNotifier.value = 10;
   // 更新总文件数
-  int totalFiles = fileList.length;
   int processedFiles = 0;
 
   //print(fileList);
 
-  // 处理文件列表中的文件
-  for (final filePath in fileList) {
-    print(filePath);
-    if (filePath.contains('L1B')) {
-      await uploadL1B(filePath, conn, showName, name, platformId, settings);
-      final newFilePath1 = getRelativeFilePath(filePath, folderPath, 'L1B');
-      final newFileDir1 = path.dirname(newFilePath1);
-      await Directory(newFileDir1).create(recursive: true);
-
-      final newFilePath2 = getRelativeFilePath(filePath, folderPath, 'L2');
-      //print(newFilePath2);
-      final newFileDir2 = path.dirname(newFilePath2);
-      await Directory(newFileDir2).create(recursive: true);
-
-      try {
-        // 启动 Python 进程并传递参数
-        final result = await Process.run(
-            settings['pythonInterpreterPath'],
-            [settings['optimizationProgramPath'], filePath, newFilePath1]);
-        // 打印脚本的输出
-        if (result.stdout.isNotEmpty) {
-          print('stdout: ${result.stdout}');
-        }
-        if (result.stderr.isNotEmpty) {
-          print('stderr: ${result.stderr}');
-        }
-      } catch (e) {
-        // 处理异常
-        print('Error running Python script: $e');
-      }
-      await uploadL1B(newFilePath1, conn, showName, name, platformId, settings);
-
-      try {
-        // 启动 Python 进程并传递参数
-        final result = await Process.run(
-            settings['pythonInterpreterPath'],
-            [settings['conversionProgramPath'], newFilePath1, newFilePath2]);
-        // 打印脚本的输出
-        if (result.stdout.isNotEmpty) {
-          print('stdout: ${result.stdout}');
-        }
-        if (result.stderr.isNotEmpty) {
-          print('stderr: ${result.stderr}');
-        }
-      } catch (e) {
-        // 处理异常
-        print('Error running Python script: $e');
-      }
-      await uploadL2(newFilePath2, conn, showName, name, platformId,
-          settings); // 修改: 传递 settings 参数
-      await uploadPara(newFilePath2, conn, showName, name, platformId,
-          settings['DeviceTableNme']);
-    } else if (filePath.contains('L2')) {
-      await uploadL2(filePath, conn, showName, name, platformId,
-          settings); // 修改: 传递 settings 参数
-    }
-    // 更新进度
-    processedFiles++;
-    progressNotifier.value = (processedFiles * 90 / totalFiles+10).round();
-  }
+  // 使用多线程处理文件列表
+  await processFilesInParallel(fileList, folderPath, conn, showName, name,
+      platformId, settings, progressNotifier, processedFiles);
 
   // 关闭游标和连接
   await conn.close();

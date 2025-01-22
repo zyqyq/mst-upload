@@ -62,7 +62,7 @@ Future<Map<String, dynamic>> readAndProcessFile(
   if (!RegExp(r'^\d+$').hasMatch(QualityFlag)) {
     throw FormatException('QualityFlag 不是一个有效的整数');
   }
-  //print("a $quantitative_indicators");
+  print("a $quantitative_indicators");
   // 添加对 quantitative_indicators[0] 的有效性检查
   if (!RegExp(r'^\d+$').hasMatch(quantitative_indicators[0])) {
     throw FormatException('quantitative_indicators[0] 不是一个有效的整数');
