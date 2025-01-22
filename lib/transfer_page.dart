@@ -187,42 +187,42 @@ class _TransferPageState extends State<TransferPage> {
           ),
           body: Center(
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.end, // 修改: 将 mainAxisAlignment 从 end 改为 center
+              mainAxisAlignment: MainAxisAlignment.end,
               children: <Widget>[
                 Expanded(
-                  child: Center( // 修改: 添加 Center 小部件
+                  child: Center(
                     child: MouseRegion(
                       cursor: SystemMouseCursors.click,
                       child: GestureDetector(
                         onTap: () {
-                          widget.countdownNotifier.value = 0; 
+                          widget.countdownNotifier.value = 0;
                         },
-                        child:Center(
-                        child: Column(
-                          children: <Widget>[
-                            SizedBox(height: 64),
-                            ValueListenableBuilder<bool>(
-                              valueListenable: _isHoveredNotifier,
-                              builder: (context, isHovered, child) {
-                                return Icon(
-                                    isHovered ? Icons.sync : Icons.cloud_upload,
-                                    size: 128);
-                              },
-                            ),
-                            SizedBox(height: 16),
-                            ValueListenableBuilder<bool>(
-                              valueListenable: _isHoveredNotifier,
-                              builder: (context, isHovered, child) {
-                                return isHovered
-                                    ? Text('单击以立即同步')
-                                    : CountdownText(
-                                        countdownNotifier: widget
-                                            .countdownNotifier,
-                                      );
-                              },
-                            ),
-                          ],
-                        ),
+                        child: Center(
+                          child: Column(
+                            children: <Widget>[
+                              SizedBox(height: 64),
+                              ValueListenableBuilder<bool>(
+                                valueListenable: _isHoveredNotifier,
+                                builder: (context, isHovered, child) {
+                                  return Icon(
+                                      isHovered ? Icons.sync : Icons.cloud_upload,
+                                      size: 128);
+                                },
+                              ),
+                              SizedBox(height: 16),
+                              ValueListenableBuilder<bool>(
+                                valueListenable: _isHoveredNotifier,
+                                builder: (context, isHovered, child) {
+                                  return isHovered
+                                      ? Text('单击以立即同步')
+                                      : CountdownText(
+                                          countdownNotifier: widget
+                                              .countdownNotifier,
+                                        );
+                                },
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                       onEnter: (_) {
@@ -234,7 +234,6 @@ class _TransferPageState extends State<TransferPage> {
                     ),
                   ),
                 ),
-                //SizedBox(height: 64),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: <Widget>[
@@ -268,6 +267,7 @@ class _TransferPageState extends State<TransferPage> {
                               ),
                               SizedBox(height: 8),
                               Text('ip: ${settings['databaseAddress']}'),
+                              Text('port: ${settings['databasePort']}'),
                               Text('db: ${settings['databaseName']}'),
                             ],
                           ),
@@ -281,7 +281,11 @@ class _TransferPageState extends State<TransferPage> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: <Widget>[
-                              Text('卡片2'),
+                              Text('路径配置:', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                              SizedBox(height: 8),
+                              Text(settings['sourceDataPath'] ?? '未设置', textAlign: TextAlign.end,overflow: TextOverflow.ellipsis),
+                              Text(settings['optimizationProgramPath'] ?? '未设置', textAlign: TextAlign.end,overflow: TextOverflow.ellipsis),
+                              Text(settings['conversionProgramPath'] ?? '未设置', textAlign: TextAlign.end,overflow: TextOverflow.ellipsis),
                             ],
                           ),
                         ),
