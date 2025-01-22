@@ -187,48 +187,54 @@ class _TransferPageState extends State<TransferPage> {
           ),
           body: Center(
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisAlignment: MainAxisAlignment.end, // 修改: 将 mainAxisAlignment 从 end 改为 center
               children: <Widget>[
-                MouseRegion(
-                  cursor: SystemMouseCursors.click,
-                  child: GestureDetector(
-                    onTap: () {
-                      widget.countdownNotifier.value = 0; 
-                    },
-                    child: Column(
-                      children: <Widget>[
-                        ValueListenableBuilder<bool>(
-                          valueListenable: _isHoveredNotifier,
-                          builder: (context, isHovered, child) {
-                            return Icon(
-                                isHovered ? Icons.sync : Icons.cloud_upload,
-                                size: 128);
-                          },
+                Expanded(
+                  child: Center( // 修改: 添加 Center 小部件
+                    child: MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: GestureDetector(
+                        onTap: () {
+                          widget.countdownNotifier.value = 0; 
+                        },
+                        child:Center(
+                        child: Column(
+                          children: <Widget>[
+                            SizedBox(height: 64),
+                            ValueListenableBuilder<bool>(
+                              valueListenable: _isHoveredNotifier,
+                              builder: (context, isHovered, child) {
+                                return Icon(
+                                    isHovered ? Icons.sync : Icons.cloud_upload,
+                                    size: 128);
+                              },
+                            ),
+                            SizedBox(height: 16),
+                            ValueListenableBuilder<bool>(
+                              valueListenable: _isHoveredNotifier,
+                              builder: (context, isHovered, child) {
+                                return isHovered
+                                    ? Text('单击以立即同步')
+                                    : CountdownText(
+                                        countdownNotifier: widget
+                                            .countdownNotifier,
+                                      );
+                              },
+                            ),
+                          ],
                         ),
-                        SizedBox(height: 16),
-                        // 使用 CountdownText 小部件来显示倒计时
-                        ValueListenableBuilder<bool>(
-                          valueListenable: _isHoveredNotifier,
-                          builder: (context, isHovered, child) {
-                            return isHovered
-                                ? Text('单击以立即同步')
-                                : CountdownText(
-                                    countdownNotifier: widget
-                                        .countdownNotifier, // 修改: 使用 ValueNotifier
-                                  );
-                          },
                         ),
-                      ],
+                      ),
+                      onEnter: (_) {
+                        _isHoveredNotifier.value = true;
+                      },
+                      onExit: (_) {
+                        _isHoveredNotifier.value = false;
+                      },
                     ),
                   ),
-                  onEnter: (_) {
-                    _isHoveredNotifier.value = true;
-                  },
-                  onExit: (_) {
-                    _isHoveredNotifier.value = false;
-                  },
                 ),
-                SizedBox(height: 32),
+                //SizedBox(height: 64),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: <Widget>[
@@ -244,7 +250,7 @@ class _TransferPageState extends State<TransferPage> {
                                 builder: (context, isConnected, child) {
                                   return Row(
                                     children: <Widget>[
-                                      Text('数据库'),
+                                      Text('数据库',style: TextStyle(fontSize: 16,fontWeight: FontWeight.bold)),
                                       SizedBox(width: 8),
                                       Container(
                                         width: 10,
@@ -289,11 +295,13 @@ class _TransferPageState extends State<TransferPage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: <Widget>[
                               ValueListenableBuilder<Map<String, dynamic>>(
-                                valueListenable: _logSummaryNotifier, // 修改: 使用 _logSummaryNotifier
+                                valueListenable: _logSummaryNotifier,
                                 builder: (context, summary, child) {
                                   return Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: <Widget>[
+                                      Text('同步统计',style: TextStyle(fontSize: 16,fontWeight: FontWeight.bold)),
+                                      SizedBox(height: 8),
                                       Text('今日同步次数: ${summary['count']}'),
                                       Text('处理文件总数: ${summary['totalFiles']}'),
                                     ],
