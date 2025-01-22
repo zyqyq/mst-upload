@@ -7,6 +7,7 @@ import 'dart:convert'; // 添加json处理库
 import 'file_operations.dart'; // 导入 file_operations.dart 文件
 import 'main.dart';
 import 'dart:async'; // 引入 Timer 所需的库
+import 'package:intl/intl.dart';
 
 class TransferPage extends StatefulWidget {
   final ValueNotifier<int> countdownNotifier; // 修改: 使用 ValueNotifier<int>
@@ -26,6 +27,7 @@ class _TransferPageState extends State<TransferPage> {
   late ValueNotifier<bool> _isPausedNotifier;
   late Timer _connectionCheckTimer;
   String _currentMode = '全局';
+  late ValueNotifier<Map<String, dynamic>> _logSummaryNotifier; // 新增: 添加 ValueNotifier<Map<String, dynamic>> 用于存储日志摘要数据
 
   @override
   void initState() {
@@ -33,9 +35,16 @@ class _TransferPageState extends State<TransferPage> {
     _isHoveredNotifier = ValueNotifier<bool>(false);
     _isDatabaseConnectedNotifier = ValueNotifier<bool>(false);
     _isPausedNotifier = ValueNotifier<bool>(false);
+    _logSummaryNotifier = ValueNotifier<Map<String, dynamic>>({'count': -1, 'totalFiles': -1}); // 新增: 初始化 _logSummaryNotifier
     _checkDatabaseConnection();
+    _getLogSummary().then((summary) {
+        _logSummaryNotifier.value = summary;
+      });
     _connectionCheckTimer = Timer.periodic(Duration(seconds: 60), (_) {
       _checkDatabaseConnection();
+      _getLogSummary().then((summary) {
+        _logSummaryNotifier.value = summary;
+      });
     });
   }
 
@@ -45,6 +54,7 @@ class _TransferPageState extends State<TransferPage> {
     _isHoveredNotifier.dispose();
     _isDatabaseConnectedNotifier.dispose();
     _isPausedNotifier.dispose();
+    _logSummaryNotifier.dispose(); // 新增: 释放 _logSummaryNotifier
     super.dispose();
   }
 
@@ -278,7 +288,18 @@ class _TransferPageState extends State<TransferPage> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: <Widget>[
-                              Text('卡片3'),
+                              ValueListenableBuilder<Map<String, dynamic>>(
+                                valueListenable: _logSummaryNotifier, // 修改: 使用 _logSummaryNotifier
+                                builder: (context, summary, child) {
+                                  return Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: <Widget>[
+                                      Text('今日同步次数: ${summary['count']}'),
+                                      Text('处理文件总数: ${summary['totalFiles']}'),
+                                    ],
+                                  );
+                                },
+                              ),
                             ],
                           ),
                         ),
@@ -293,6 +314,31 @@ class _TransferPageState extends State<TransferPage> {
       },
     );
   }
+
+  // 新增: 定义 _getLogSummary 方法
+ Future<Map<String, dynamic>> _getLogSummary() async {
+  final file = File('process_log.txt'); 
+  if (await file.exists()) {
+    final contents = await file.readAsLines(); // 逐行读取文件内容
+    int todayCount = 0;
+    int totalFiles = 0;
+    final today = DateTime.now();
+    final todayString = DateFormat('yyyy-MM-dd').format(today); // 格式化今天的日期
+
+    for (final line in contents) {
+      if (line.contains(todayString)) {
+        todayCount++;
+        final match = RegExp(r'处理文件总数: (\d+)').firstMatch(line);
+        if (match != null) {
+          totalFiles += int.parse(match.group(1)!);
+        }
+      }
+    }
+      return {'count': todayCount, 'totalFiles': totalFiles};
+  } else {
+    return {'count': -1, 'totalFiles': -1};
+  }
+}
 }
 
 // 新增 CountdownText 小部件

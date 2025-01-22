@@ -67,7 +67,7 @@ Future<void> processFiles(
       await conn!.close();
     }
     conn = await MySqlConnection.connect(dbParams);
-    print(settings['databaseName']);
+    //print(settings['databaseName']);
     await conn.query('USE ${settings['databaseName']}');
   } catch (e) {
     print('无法连接到数据库: $e');
@@ -111,7 +111,7 @@ Future<void> processFiles(
       await Directory(newFileDir1).create(recursive: true);
 
       final newFilePath2 = getRelativeFilePath(filePath, folderPath, 'L2');
-      print(newFilePath2);
+      //print(newFilePath2);
       final newFileDir2 = path.dirname(newFilePath2);
       await Directory(newFileDir2).create(recursive: true);
 
