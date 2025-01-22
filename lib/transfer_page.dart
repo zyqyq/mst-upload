@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'dart:io';
+import 'dart:io'; // 添加dart:io库以使用File类
 import 'dart:convert';
 import 'package:mysql1/mysql1.dart';
 import 'package:path/path.dart' as path; // 添加路径处理库
@@ -28,6 +28,7 @@ class _TransferPageState extends State<TransferPage> {
   late Timer _connectionCheckTimer;
   String _currentMode = '全局';
   late ValueNotifier<Map<String, dynamic>> _logSummaryNotifier; // 新增: 添加 ValueNotifier<Map<String, dynamic>> 用于存储日志摘要数据
+  late ValueNotifier<String> _lastSyncTimeNotifier; // 新增: 添加 ValueNotifier<String> 用于存储最近一次同步时间
 
   @override
   void initState() {
@@ -36,17 +37,52 @@ class _TransferPageState extends State<TransferPage> {
     _isDatabaseConnectedNotifier = ValueNotifier<bool>(false);
     _isPausedNotifier = ValueNotifier<bool>(false);
     _logSummaryNotifier = ValueNotifier<Map<String, dynamic>>({'count': -1, 'totalFiles': -1}); // 新增: 初始化 _logSummaryNotifier
+    _lastSyncTimeNotifier = ValueNotifier<String>(''); // 新增: 初始化 _lastSyncTimeNotifier
     _checkDatabaseConnection();
     _getLogSummary().then((summary) {
         _logSummaryNotifier.value = summary;
       });
+    _getLastSyncTime().then((lastSyncTime) {
+      _lastSyncTimeNotifier.value = lastSyncTime;
+    });
     _connectionCheckTimer = Timer.periodic(Duration(seconds: 60), (_) {
       _checkDatabaseConnection();
       _getLogSummary().then((summary) {
         _logSummaryNotifier.value = summary;
       });
+      _getLastSyncTime().then((lastSyncTime) {
+        _lastSyncTimeNotifier.value = lastSyncTime;
+      });
     });
   }
+
+  // 新增: 定义 _getLastSyncTime 方法
+ Future<String> _getLastSyncTime() async {
+  final file = File('process_log.txt');
+  if (await file.exists()) {
+    final contents = await file.readAsLines(); // 逐行读取文件内容
+    if (contents.isNotEmpty) {
+      DateTime? latestTime; // 用于存储最新的时间戳
+      for (final line in contents) {
+        final match = RegExp(r'(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})').firstMatch(line);
+        if (match != null) {
+          final timestamp = match.group(1)!;
+          final DateTime dateTime = DateTime.parse(timestamp);
+          // 如果 latestTime 为空，或者当前时间戳比已记录的最新时间戳更新，则更新 latestTime
+          if (latestTime == null || dateTime.isAfter(latestTime)) {
+            latestTime = dateTime;
+          }
+        }
+      }
+      // 如果找到了最新时间戳，格式化并返回
+      if (latestTime != null) {
+        final String formattedTime = '${latestTime.year.toString().substring(2)}-${latestTime.month.toString().padLeft(2, '0')}-${latestTime.day.toString().padLeft(2, '0')} ${latestTime.hour.toString().padLeft(2, '0')}:${latestTime.minute.toString().padLeft(2, '0')}';
+        return formattedTime;
+      }
+    }
+  }
+  return '未记录';
+}
 
   @override
   void dispose() {
@@ -55,6 +91,7 @@ class _TransferPageState extends State<TransferPage> {
     _isDatabaseConnectedNotifier.dispose();
     _isPausedNotifier.dispose();
     _logSummaryNotifier.dispose(); // 新增: 释放 _logSummaryNotifier
+    _lastSyncTimeNotifier.dispose(); // 新增: 释放 _lastSyncTimeNotifier
     super.dispose();
   }
 
@@ -268,7 +305,7 @@ class _TransferPageState extends State<TransferPage> {
                               SizedBox(height: 8),
                               Text('ip: ${settings['databaseAddress']}'),
                               Text('port: ${settings['databasePort']}'),
-                              Text('db: ${settings['databaseName']}'),
+                              Text('db: ${settings['databaseName']}',overflow: TextOverflow.ellipsis),
                             ],
                           ),
                         ),
@@ -283,9 +320,9 @@ class _TransferPageState extends State<TransferPage> {
                             children: <Widget>[
                               Text('路径配置:', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                               SizedBox(height: 8),
-                              Text(settings['sourceDataPath'] ?? '未设置', textAlign: TextAlign.end,overflow: TextOverflow.ellipsis),
-                              Text(settings['optimizationProgramPath'] ?? '未设置', textAlign: TextAlign.end,overflow: TextOverflow.ellipsis),
-                              Text(settings['conversionProgramPath'] ?? '未设置', textAlign: TextAlign.end,overflow: TextOverflow.ellipsis),
+                              Text("源文件:${_getFileNameOrLastPath(settings['sourceDataPath'] ?? '未设置')}", overflow: TextOverflow.ellipsis),
+                              Text("优化程序:${_getFileNameOrLastPath(settings['optimizationProgramPath'] ?? '未设置')}", overflow: TextOverflow.ellipsis),
+                              Text("转换程序:${_getFileNameOrLastPath(settings['conversionProgramPath'] ?? '未设置')}", overflow: TextOverflow.ellipsis),
                             ],
                           ),
                         ),
@@ -312,6 +349,17 @@ class _TransferPageState extends State<TransferPage> {
                                   );
                                 },
                               ),
+                              ValueListenableBuilder<String>(
+                                valueListenable: _lastSyncTimeNotifier,
+                                builder: (context, lastSyncTime, child) {
+                                  return Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: <Widget>[
+                                      Text('最后同步: $lastSyncTime',overflow: TextOverflow.ellipsis),
+                                    ],
+                                  );
+                                },
+                              ),
                             ],
                           ),
                         ),
@@ -325,6 +373,11 @@ class _TransferPageState extends State<TransferPage> {
         );
       },
     );
+  }
+
+  // 新增: 定义一个方法来获取文件名或最后一层路径
+  String _getFileNameOrLastPath(String paths) {
+    return path.basename(paths);
   }
 
   // 新增: 定义 _getLogSummary 方法
