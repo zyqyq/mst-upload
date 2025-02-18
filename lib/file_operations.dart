@@ -13,40 +13,42 @@ final logFilePath = 'process_log.txt';
 
 // 新增: 定义日志记录函数
 void logInfo(String message) {
-  final logContent = '[${DateTime.now().toIso8601String()}] INFO: $message\n';
+  final logContent = '\n[${DateTime.now().toIso8601String()}] INFO: $message';
   File(logFilePath).writeAsString(logContent, mode: FileMode.append);
 }
 
 void logWarning(String message) {
-  final logContent =
-      '[${DateTime.now().toIso8601String()}] WARNING: $message\n';
+  final logContent = '\n[${DateTime.now().toIso8601String()}] WARNING: $message';
   File(logFilePath).writeAsString(logContent, mode: FileMode.append);
 }
 
 void logError(String message, [StackTrace? stackTrace]) {
-  final logContent =
-      '[${DateTime.now().toIso8601String()}] ERROR: $message\n${stackTrace ?? ''}\n';
+  final logContent = '\n[${DateTime.now().toIso8601String()}] ERROR: $message\n${stackTrace ?? ''}';
   File(logFilePath).writeAsString(logContent, mode: FileMode.append);
 }
 
 void logDebug(String message) {
-  final logContent = '[${DateTime.now().toIso8601String()}] DEBUG: $message\n';
-  File(logFilePath).writeAsString(logContent, mode: FileMode.append);
+  if (_globalSettings['enableDebugLogging'] == true) {
+    final logContent = '\n[${DateTime.now().toIso8601String()}] DEBUG: $message';
+    File(logFilePath).writeAsString(logContent, mode: FileMode.append);
+  }
 }
 
 void logFatal(String message, [StackTrace? stackTrace]) {
-  final logContent =
-      '[${DateTime.now().toIso8601String()}] FATAL: $message\n${stackTrace ?? ''}\n';
+  final logContent = '\n[${DateTime.now().toIso8601String()}] FATAL: $message\n${stackTrace ?? ''}';
   File(logFilePath).writeAsString(logContent, mode: FileMode.append);
 }
 
-// 定义 _readSettings 方法
-Future<Map<String, dynamic>> _readSettings() async {
+// 新增: 定义全局变量来存储设置
+Map<String, dynamic> _globalSettings = {};
+
+// 修改: 初始化时读取设置
+Future<void> _initializeSettings() async {
   try {
     final settingsFile = File('settings.json');
     final settingsContent = await settingsFile.readAsString();
+    _globalSettings = json.decode(settingsContent);
     logDebug('读取设置文件成功: settings.json');
-    return json.decode(settingsContent);
   } catch (e, stackTrace) {
     logError('读取设置文件失败: settings.json', stackTrace);
     rethrow;
@@ -245,23 +247,23 @@ Future<void> processFiles(
   print("开始处理文件");
   // 修改: 添加 BuildContext 参数
   // 读取设置
-  final settings = await _readSettings();
-  final showName = settings['show_name'];
-  final name = settings['name'];
-  final platformId = settings['Platform_id'];
+  await _initializeSettings(); // 初始化设置
+  final showName = _globalSettings['show_name'];
+  final name = _globalSettings['name'];
+  final platformId = _globalSettings['Platform_id'];
   progressNotifier.value = 0;
 
   // 定义数据库连接参数
   final dbParams = ConnectionSettings(
-    host: settings['databaseAddress'],
-    port: int.parse(settings['databasePort']),
-    user: settings['databaseUsername'],
-    password: settings['databasePassword'],
-    db: settings['databaseName'],
+    host: _globalSettings['databaseAddress'],
+    port: int.parse(_globalSettings['databasePort']),
+    user: _globalSettings['databaseUsername'],
+    password: _globalSettings['databasePassword'],
+    db: _globalSettings['databaseName'],
   );
 
   // 定义需要读取的文件夹路径
-  final folderPath = settings['sourceDataPath'];
+  final folderPath = _globalSettings['sourceDataPath'];
 
   // 记录程序开始时间
   final startTime = DateTime.now();
@@ -274,9 +276,9 @@ Future<void> processFiles(
     }
     conn = await MySqlConnection.connect(dbParams);
     //print(settings['databaseName']);
-    await conn.query('USE ${settings['databaseName']}');
+    await conn.query('USE ${_globalSettings['databaseName']}');
     logDebug(
-        '数据库连接成功: ${settings['databaseAddress']}:${settings['databasePort']}/${settings['databaseName']}');
+        '数据库连接成功: ${_globalSettings['databaseAddress']}:${_globalSettings['databasePort']}/${_globalSettings['databaseName']}');
   } catch (e, stackTrace) {
     logError('无法连接到数据库: $e', stackTrace);
     showDialog(
@@ -310,12 +312,12 @@ Future<void> processFiles(
 
   // 使用多线程处理文件列表
   await processFilesInParallel(fileList, folderPath, conn, showName, name,
-      platformId, settings, progressNotifier, processedFiles);
+      platformId, _globalSettings, progressNotifier, processedFiles);
 
   // 关闭游标和连接
   await conn.close();
   logDebug(
-      '数据库连接关闭: ${settings['databaseAddress']}:${settings['databasePort']}/${settings['databaseName']}');
+      '数据库连接关闭: ${_globalSettings['databaseAddress']}:${_globalSettings['databasePort']}/${_globalSettings['databaseName']}');
 
   // 记录程序结束时间
   final endTime = DateTime.now();

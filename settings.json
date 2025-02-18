@@ -20,5 +20,6 @@
   "L1BMProcessedTableName": "smos_radar_qzgcz_L1BMProcessed",
   "DeviceTableNme": "smos_radar_qzgcz_device2",
   "pythonInterpreterPath": "/Library/Developer/CommandLineTools/usr/bin/python3",
-  "optimizationProgramPath": "lib/libfix_for_flutter.py"
+  "optimizationProgramPath": "lib/libfix_for_flutter.py",
+  "enableDebugLogging": true
 }

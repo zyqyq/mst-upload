@@ -47,6 +47,8 @@ class SettingsPageState extends State<SettingsPage> {
       TextEditingController(); // 新增 Python解释器地址输入框控制器
   final TextEditingController _optimizationProgramPathController =
       TextEditingController(); // 新增 优化程序地址输入框控制器
+  final TextEditingController _enableDebugLoggingController =
+      TextEditingController(); // 新增 enableDebugLogging 输入框控制器
   bool _isPasswordVisible = false; // 添加标志来跟踪密码是否可见
 
   bool _hasUnsavedChanges = false; // 添加标志来跟踪是否有未保存的更改
@@ -83,6 +85,8 @@ class SettingsPageState extends State<SettingsPage> {
             settings['pythonInterpreterPath'] ?? ''; // 加载 Python解释器地址
         _optimizationProgramPathController.text =
             settings['optimizationProgramPath'] ?? ''; // 加载 优化程序地址
+        _enableDebugLoggingController.text =
+            settings['enableDebugLogging'].toString(); // 加载 enableDebugLogging
         _hasUnsavedChanges = false; // 重置标志
       });
     }
@@ -104,6 +108,7 @@ class SettingsPageState extends State<SettingsPage> {
       'name': _nameController.text, // 保存 name
       'pythonInterpreterPath': _pythonInterpreterPathController.text, // 保存 Python解释器地址
       'optimizationProgramPath': _optimizationProgramPathController.text, // 保存 优化程序地址
+      'enableDebugLogging': _enableDebugLoggingController.text.toLowerCase() == 'true', // 保存 enableDebugLogging
     };
 
     // 读取旧的同步频率
@@ -590,6 +595,31 @@ class SettingsPageState extends State<SettingsPage> {
                     ),
                     onChanged: (value) =>
                         setState(() => _hasUnsavedChanges = true), // 设置标志
+                  ),
+                ],
+              ),
+            ),
+          ),
+          SizedBox(height: 10), // 添加间距
+          Card(
+            child: Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text('调试设置',
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  SizedBox(height: 8),
+                  SwitchListTile(
+                    title: Text('启用调试日志'),
+                    value: _enableDebugLoggingController.text.toLowerCase() == 'true',
+                    onChanged: (value) {
+                      setState(() {
+                        _enableDebugLoggingController.text = value.toString();
+                        _hasUnsavedChanges = true; // 设置标志
+                      });
+                    },
                   ),
                 ],
               ),

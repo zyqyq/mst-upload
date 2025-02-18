@@ -24,8 +24,8 @@ class _HistoryPageState extends State<HistoryPage> {
     if (await file.exists()) {
       final contents = await file.readAsString();
       final lines = contents.split('\n');
-      final filteredLines =
-          lines.where((line) => !line.startsWith('处理文件列表')).toList();
+   final filteredLines =
+          lines.where((line) => line.trim().isNotEmpty).toList();
       // 倒序排列日志行
       setState(() {
         _logController.text = filteredLines.reversed.toList().join('\n');
