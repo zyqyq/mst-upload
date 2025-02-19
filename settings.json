@@ -12,5 +12,14 @@
   "name": "qzgczMST",
   "pythonInterpreterPath": "/Library/Developer/CommandLineTools/usr/bin/python3",
   "optimizationProgramPath": "lib/libfix_for_flutter.py",
-  "enableDebugLogging": true
+  "enableDebugLogging": true,
+  "L2STTableName": "smos_radar_qzgcz_L2ST",
+  "L2STProcessedTableName": "smos_radar_qzgcz_L2STProcessed",
+  "L2MTableName": "smos_radar_qzgcz_L2M",
+  "L2MProcessedTableName": "smos_radar_qzgcz_L2MProcessed",
+  "L1BSTTableName": "smos_radar_qzgcz_L1BST",
+  "L1BSTProcessedTableName": "smos_radar_qzgcz_L1BSTProcessed",
+  "L1BMTableName": "smos_radar_qzgcz_L1BM",
+  "L1BMProcessedTableName": "smos_radar_qzgcz_L1BMProcessed",
+  "DeviceTableNme": "smos_radar_qzgcz_device2"
 }

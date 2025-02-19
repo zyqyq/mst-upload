@@ -111,7 +111,7 @@ Future<void> processFile(
     String name,
     String platformId,
     Map<String, dynamic> settings) async {
-  try {
+  // try {
     logDebug('开始处理文件: $filePath');
     if (filePath.contains('L1B')) {
       logDebug('文件类型: L1B');
@@ -173,9 +173,9 @@ Future<void> processFile(
       logDebug('上传 L2 文件: $filePath');
     }
     logDebug('文件处理完成: $filePath');
-  } catch (e, stackTrace) {
-    logError('文件处理失败: $filePath', stackTrace);
-  }
+  // } catch (e, stackTrace) {
+  //   logError('文件处理失败: $filePath', stackTrace);
+  // }
 }
 
 Future<void> processFilesInParallel(
