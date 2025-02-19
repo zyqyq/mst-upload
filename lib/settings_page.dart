@@ -106,9 +106,12 @@ class SettingsPageState extends State<SettingsPage> {
       'show_name': _showNameController.text, // 保存 show_name
       'Platform_id': _platformIdController.text, // 保存 Platform_id
       'name': _nameController.text, // 保存 name
-      'pythonInterpreterPath': _pythonInterpreterPathController.text, // 保存 Python解释器地址
-      'optimizationProgramPath': _optimizationProgramPathController.text, // 保存 优化程序地址
-      'enableDebugLogging': _enableDebugLoggingController.text.toLowerCase() == 'true', // 保存 enableDebugLogging
+      'pythonInterpreterPath':
+          _pythonInterpreterPathController.text, // 保存 Python解释器地址
+      'optimizationProgramPath':
+          _optimizationProgramPathController.text, // 保存 优化程序地址
+      'enableDebugLogging': _enableDebugLoggingController.text.toLowerCase() ==
+          'true', // 保存 enableDebugLogging
     };
 
     // 新增: 编码声明
@@ -249,36 +252,36 @@ class SettingsPageState extends State<SettingsPage> {
         password: password,
         db: db,
       ));
-      final version = await connection.query('SELECT version()');
-      print('数据库版本: ${version.first[0]}');
+      final results = await connection.query('SHOW TABLES;');
+      // if (results.isEmpty) {
+      //   throw SocketException('验证查询失败'); // 自定义错误码
+      // }
       await connection.close();
       return true;
     } catch (e) {
-        if (e is SocketException) {
-          // 处理网络连接问题
-          print('网络连接失败: ${e.message}');
-          _showErrorDialog('无法连接到数据库服务器，请检查连接参数');
-        } 
-        else if (e is MySqlException) {
-           print('数据库错误[${e.errorNumber}] ${e.message}');
-            // 使用标准错误码判断
-            switch (e.errorNumber) {
-              case 1045: // 认证失败标准错误码
-                _showErrorDialog('用户名或密码错误 (错误代码：${e.errorNumber})');
-                break;
-              case 1049: // 未知数据库错误码
-                _showErrorDialog('数据库 ${db} 不存在 (错误代码：${e.errorNumber})');
-                break;
-              default:
-                _showErrorDialog('数据库错误[${e.errorNumber}]: ${e.message}');
-            }
-                  }
-        else {
-          print('未知错误: $e');
-          _showErrorDialog('未知数据库错误: ${e.toString()}');
+      if (e is SocketException) {
+        // 处理网络连接问题
+        print('网络连接失败: ${e.message}');
+        _showErrorDialog('无法连接到数据库服务器，请检查连接参数');
+      } else if (e is MySqlException) {
+        print('数据库错误[${e.errorNumber}] ${e.message}');
+        // 使用标准错误码判断
+        switch (e.errorNumber) {
+          case 1045: // 认证失败标准错误码
+            _showErrorDialog('用户名或密码错误 (错误代码：${e.errorNumber})');
+            break;
+          case 1049: // 未知数据库错误码
+            _showErrorDialog('数据库 ${db} 不存在 (错误代码：${e.errorNumber})');
+            break;
+          default:
+            _showErrorDialog('数据库错误[${e.errorNumber}]: ${e.message}');
         }
-        return false;
+      } else {
+        print('未知错误: $e');
+        _showErrorDialog('未知数据库错误: ${e.toString()}');
       }
+      return false;
+    }
   }
 
   void _validateDatabaseParameters() async {

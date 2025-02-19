@@ -7,36 +7,69 @@ import 'package:flutter/material.dart';
 import 'upload_L1B.dart';
 import 'upload_L2.dart';
 import 'dart:isolate'; // 添加dart:isolate库以使用Isolate
+import 'package:mutex/mutex.dart';
 
 // 新增: 定义日志文件路径
 final logFilePath = 'process_log.txt';
 
+// 新增: 定义互斥锁
+final _logFileMutex = Mutex();
+
 // 新增: 定义日志记录函数
-void logInfo(String message) {
-  final logContent = '\n[${DateTime.now().toIso8601String()}] INFO: $message';
-  File(logFilePath).writeAsString(logContent, mode: FileMode.append);
-}
-
-void logWarning(String message) {
-  final logContent = '\n[${DateTime.now().toIso8601String()}] WARNING: $message';
-  File(logFilePath).writeAsString(logContent, mode: FileMode.append);
-}
-
-void logError(String message, [StackTrace? stackTrace]) {
-  final logContent = '\n[${DateTime.now().toIso8601String()}] ERROR: $message\n${stackTrace ?? ''}';
-  File(logFilePath).writeAsString(logContent, mode: FileMode.append);
-}
-
-void logDebug(String message) {
-  if (_globalSettings['enableDebugLogging'] == true) {
-    final logContent = '\n[${DateTime.now().toIso8601String()}] DEBUG: $message';
-    File(logFilePath).writeAsString(logContent, mode: FileMode.append);
+void logInfo(String message) async {
+  await _logFileMutex.acquire();
+  try {
+    final logContent = '\n[${DateTime.now().toIso8601String()}] INFO: $message';
+    await File(logFilePath).writeAsString(logContent, mode: FileMode.append);
+  } finally {
+    _logFileMutex.release();
   }
 }
 
-void logFatal(String message, [StackTrace? stackTrace]) {
-  final logContent = '\n[${DateTime.now().toIso8601String()}] FATAL: $message\n${stackTrace ?? ''}';
-  File(logFilePath).writeAsString(logContent, mode: FileMode.append);
+void logWarning(String message) async {
+  await _logFileMutex.acquire();
+  try {
+    final logContent =
+        '\n[${DateTime.now().toIso8601String()}] WARNING: $message';
+    await File(logFilePath).writeAsString(logContent, mode: FileMode.append);
+  } finally {
+    _logFileMutex.release();
+  }
+}
+
+void logError(String message, [StackTrace? stackTrace]) async {
+  await _logFileMutex.acquire();
+  try {
+    final logContent =
+        '\n[${DateTime.now().toIso8601String()}] ERROR: $message\n${stackTrace ?? ''}';
+    await File(logFilePath).writeAsString(logContent, mode: FileMode.append);
+  } finally {
+    _logFileMutex.release();
+  }
+}
+
+void logDebug(String message) async {
+  if (_globalSettings['enableDebugLogging'] == true) {
+    await _logFileMutex.acquire();
+    try {
+      final logContent =
+          '\n[${DateTime.now().toIso8601String()}] DEBUG: $message';
+      await File(logFilePath).writeAsString(logContent, mode: FileMode.append);
+    } finally {
+      _logFileMutex.release();
+    }
+  }
+}
+
+void logFatal(String message, [StackTrace? stackTrace]) async {
+  await _logFileMutex.acquire();
+  try {
+    final logContent =
+        '\n[${DateTime.now().toIso8601String()}] FATAL: $message\n${stackTrace ?? ''}';
+    await File(logFilePath).writeAsString(logContent, mode: FileMode.append);
+  } finally {
+    _logFileMutex.release();
+  }
 }
 
 // 新增: 定义全局变量来存储设置

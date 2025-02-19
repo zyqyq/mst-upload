@@ -391,7 +391,7 @@ class _TransferPageState extends State<TransferPage> {
     final todayString = DateFormat('yyyy-MM-dd').format(today); // 格式化今天的日期
 
     for (final line in contents) {
-      if (line.contains(todayString)) {
+      if (line.contains(todayString)&&line.contains('处理文件总数')) {
         todayCount++;
         final match = RegExp(r'处理文件总数: (\d+)').firstMatch(line);
         if (match != null) {
