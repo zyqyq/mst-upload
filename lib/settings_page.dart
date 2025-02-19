@@ -249,23 +249,30 @@ class SettingsPageState extends State<SettingsPage> {
         password: password,
         db: db,
       ));
+      final version = await connection.query('SELECT version()');
+      print('数据库版本: ${version.first[0]}');
       await connection.close();
       return true;
     } catch (e) {
         if (e is SocketException) {
           // 处理网络连接问题
           print('网络连接失败: ${e.message}');
-          _showErrorDialog('无法连接到数据库服务器，请检查地址和端口');
+          _showErrorDialog('无法连接到数据库服务器，请检查连接参数');
         } 
         else if (e is MySqlException) {
-          // 处理认证错误 (错误码 1045 表示认证失败)
-          print('认证失败: ${e.message}');
-          if (e.message.contains('Access denied')) {
-            _showErrorDialog('用户名或密码错误 (错误代码：${e.errorNumber})');
-          } else {
-            _showErrorDialog('数据库连接错误: ${e.message}');
-          }
-        }
+           print('数据库错误[${e.errorNumber}] ${e.message}');
+            // 使用标准错误码判断
+            switch (e.errorNumber) {
+              case 1045: // 认证失败标准错误码
+                _showErrorDialog('用户名或密码错误 (错误代码：${e.errorNumber})');
+                break;
+              case 1049: // 未知数据库错误码
+                _showErrorDialog('数据库 ${db} 不存在 (错误代码：${e.errorNumber})');
+                break;
+              default:
+                _showErrorDialog('数据库错误[${e.errorNumber}]: ${e.message}');
+            }
+                  }
         else {
           print('未知错误: $e');
           _showErrorDialog('未知数据库错误: ${e.toString()}');
