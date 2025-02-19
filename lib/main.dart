@@ -63,20 +63,33 @@ class _MyHomePageState extends State<MyHomePage> {
 
   // 添加: 读取 setting.json 文件
   Future<Map<String, dynamic>> _readSettings() async {
+    const defaultSettings = <String, dynamic>{};
     final settingsFile = File('settings.json');
-    final settingsContent = await settingsFile.readAsString();
-    print(settingsContent);
-    if (settingsContent.trim().isEmpty) {
-      print('settings.json 文件内容为空，使用默认设置');
+    
+    try {
+      final settingsContent = await settingsFile.readAsString();
+      print(settingsContent);
+      
+      if (settingsContent.trim().isEmpty) {
+        print('settings.json 文件内容为空，使用默认设置');
+        return defaultSettings;
+      }
+      
+      return json.decode(settingsContent) as Map<String, dynamic>;
+    } on FileSystemException catch (e) {
+      print('文件访问异常: ${e.message}，使用默认设置');
+      return defaultSettings;
+    } on FormatException catch (e) {
+      print('JSON格式错误: ${e.message}，使用默认设置');
+      return defaultSettings;
     }
-    return json.decode(settingsContent);
   }
 
   Future<void> _startSyncTimer() async {
     _syncTimer?.cancel(); // 添加: 取消旧的定时器
     final settings = await _readSettings();
     //print(settings);
-    final syncFrequency = int.parse(settings['syncFrequency'].toString()) ?? 5;
+    final syncFrequency = int.tryParse(settings['syncFrequency'].toString()) ?? 30;
     print(syncFrequency);
     int _remainingSeconds = syncFrequency * 60;
     _countdownNotifier.value = _remainingSeconds; // 修改: 初始化倒计时

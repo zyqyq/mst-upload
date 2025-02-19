@@ -111,12 +111,23 @@ class SettingsPageState extends State<SettingsPage> {
       'enableDebugLogging': _enableDebugLoggingController.text.toLowerCase() == 'true', // 保存 enableDebugLogging
     };
 
+    // 新增: 编码声明
+    const encoder = JsonEncoder.withIndent('  ');
+    final utf8Bytes = utf8.encode(encoder.convert(settings));
+
+    try {
+      await file.writeAsBytes(utf8Bytes, mode: FileMode.write);
+    } catch (e) {
+      print('文件写入失败: ${e}');
+      rethrow;
+    }
+
     // 读取旧的同步频率
     final oldSettings = await _readSettings();
-    final oldSyncFrequency = int.parse(oldSettings['syncFrequency'].toString());
+    //final oldSyncFrequency = int.parse(oldSettings['syncFrequency'].toString());
 
     // 检查同步频率是否发生变化
-    if (oldSyncFrequency != int.parse(_syncFrequencyController.text)) {
+    if (oldSettings != settings) {
       widget.onSettingsSaved(); // 调用回调函数通知 MyHomePage
     }
 
@@ -153,31 +164,32 @@ class SettingsPageState extends State<SettingsPage> {
     }
   }
 
-  void _validatePaths() async{
+  void _validatePaths() async {
     final sourceDataPath = _sourceDataPathController.text;
     final conversionProgramPath = _conversionProgramPathController.text;
     final pythonInterpreterPath = _pythonInterpreterPathController.text;
     final optimizationProgramPath = _optimizationProgramPathController.text;
 
     if (sourceDataPath.isNotEmpty && !Directory(sourceDataPath).existsSync()) {
+      print(sourceDataPath);
       _showErrorDialog('源数据地址不是一个有效的文件夹路径');
       return;
     }
 
-  if (pythonInterpreterPath.isNotEmpty) {
+    if (pythonInterpreterPath.isNotEmpty) {
       try {
-      final shell = Shell();
-      final result = await shell.run('$pythonInterpreterPath --version');
-      if (result.isEmpty) {
-        _showErrorDialog('Python解释器地址不是一个有效的 Python 解释器');
-        return;
-      }
-      // 假设第一个结果是有效的
-      final results = result.first;
-      if (results.exitCode != 0) {
-        _showErrorDialog('Python解释器地址不是一个有效的 Python 解释器');
-        return;
-      }
+        final shell = Shell();
+        final result = await shell.run('$pythonInterpreterPath --version');
+        if (result.isEmpty) {
+          _showErrorDialog('Python解释器地址不是一个有效的 Python 解释器');
+          return;
+        }
+        // 假设第一个结果是有效的
+        final results = result.first;
+        if (results.exitCode != 0) {
+          _showErrorDialog('Python解释器地址不是一个有效的 Python 解释器');
+          return;
+        }
       } catch (e) {
         _showErrorDialog('Python解释器地址不是一个有效的 Python 解释器');
         return;
@@ -187,16 +199,16 @@ class SettingsPageState extends State<SettingsPage> {
     if (conversionProgramPath.isNotEmpty &&
         !File(conversionProgramPath).existsSync()) {
       if (!conversionProgramPath.endsWith('.py')) {
-      _showErrorDialog('转换程序地址不是一个有效的 .py 文件');
-      return;
+        _showErrorDialog('转换程序地址不是一个有效的 .py 文件');
+        return;
       }
     }
 
     if (optimizationProgramPath.isNotEmpty &&
         !File(optimizationProgramPath).existsSync()) {
       if (!optimizationProgramPath.endsWith('.py')) {
-      _showErrorDialog('优化程序地址不是一个有效的 .py 文件');
-      return;
+        _showErrorDialog('优化程序地址不是一个有效的 .py 文件');
+        return;
       }
     }
 
@@ -240,14 +252,26 @@ class SettingsPageState extends State<SettingsPage> {
       await connection.close();
       return true;
     } catch (e) {
-      if (e is SocketException) {
-        print(
-            '数据库连接失败: ${e.message} (OS Error: ${e.osError?.message}, errno = ${e.osError?.errorCode}), address = $host, port = $port');
-      } else {
-        print('数据库连接失败: $e');
+        if (e is SocketException) {
+          // 处理网络连接问题
+          print('网络连接失败: ${e.message}');
+          _showErrorDialog('无法连接到数据库服务器，请检查地址和端口');
+        } 
+        else if (e is MySqlException) {
+          // 处理认证错误 (错误码 1045 表示认证失败)
+          print('认证失败: ${e.message}');
+          if (e.message.contains('Access denied')) {
+            _showErrorDialog('用户名或密码错误 (错误代码：${e.errorNumber})');
+          } else {
+            _showErrorDialog('数据库连接错误: ${e.message}');
+          }
+        }
+        else {
+          print('未知错误: $e');
+          _showErrorDialog('未知数据库错误: ${e.toString()}');
+        }
+        return false;
       }
-      return false;
-    }
   }
 
   void _validateDatabaseParameters() async {
@@ -259,7 +283,9 @@ class SettingsPageState extends State<SettingsPage> {
       );
       _saveSettings(); // 保存设置
     } else {
-      _showErrorDialog('数据库参数无效或连接失败');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('数据库参数无效或连接失败')),
+      );
     }
   }
 
@@ -295,6 +321,7 @@ class SettingsPageState extends State<SettingsPage> {
                 TextButton(
                   child: Text('取消修改'),
                   onPressed: () {
+                    _loadSettings(); // 重新加载设置
                     Navigator.of(context).pop(false); // 返回 false 表示不保存更改
                   },
                 ),
@@ -336,6 +363,37 @@ class SettingsPageState extends State<SettingsPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
+                  Text('同步频率',
+                      style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold)), // 修改: 同步频率
+                  SizedBox(height: 8),
+                  Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: TextFormField(
+                          controller: _syncFrequencyController, // 修改: 同步频率控制器
+                          decoration: InputDecoration(
+                            labelText: 'n分钟一次（-1则手动模式）', // 修改: 后缀解释
+                            border: OutlineInputBorder(),
+                          ),
+                          onChanged: (value) =>
+                              setState(() => _hasUnsavedChanges = true), // 设置标志
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          SizedBox(height: 10), // 添加间距
+          Card(
+            child: Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
                   Text('源数据地址',
                       style:
                           TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
@@ -343,16 +401,18 @@ class SettingsPageState extends State<SettingsPage> {
                   Row(
                     children: <Widget>[
                       Expanded(
-                        child: Tooltip( // 添加 Tooltip 小部件
-                          message: _sourceDataPathController.text, // 设置提示信息为输入框内容
+                        child: Tooltip(
+                          // 添加 Tooltip 小部件
+                          message:
+                              _sourceDataPathController.text, // 设置提示信息为输入框内容
                           child: TextFormField(
                             controller: _sourceDataPathController,
                             decoration: InputDecoration(
                               labelText: '文件夹路径',
                               border: OutlineInputBorder(),
                             ),
-                            onChanged: (value) =>
-                                setState(() => _hasUnsavedChanges = true), // 设置标志
+                            onChanged: (value) => setState(
+                                () => _hasUnsavedChanges = true), // 设置标志
                           ),
                         ),
                       ),
@@ -379,21 +439,24 @@ class SettingsPageState extends State<SettingsPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   Text('python外接配置',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)), // 统一的标题
+                      style: TextStyle(
+                          fontSize: 18, fontWeight: FontWeight.bold)), // 统一的标题
                   SizedBox(height: 8),
                   Row(
                     children: <Widget>[
                       Expanded(
-                        child: Tooltip( // 添加 Tooltip 小部件
-                          message: _pythonInterpreterPathController.text, // 设置提示信息为输入框内容
+                        child: Tooltip(
+                          // 添加 Tooltip 小部件
+                          message: _pythonInterpreterPathController
+                              .text, // 设置提示信息为输入框内容
                           child: TextFormField(
                             controller: _pythonInterpreterPathController,
                             decoration: InputDecoration(
                               labelText: 'Python解释器路径',
                               border: OutlineInputBorder(),
                             ),
-                            onChanged: (value) =>
-                                setState(() => _hasUnsavedChanges = true), // 设置标志
+                            onChanged: (value) => setState(
+                                () => _hasUnsavedChanges = true), // 设置标志
                           ),
                         ),
                       ),
@@ -407,21 +470,23 @@ class SettingsPageState extends State<SettingsPage> {
                         ),
                       ),
                     ],
-                  ), 
+                  ),
                   SizedBox(height: 8),
                   Row(
                     children: <Widget>[
                       Expanded(
-                        child: Tooltip( // 添加 Tooltip 小部件
-                          message: _conversionProgramPathController.text, // 设置提示信息为输入框内容
+                        child: Tooltip(
+                          // 添加 Tooltip 小部件
+                          message: _conversionProgramPathController
+                              .text, // 设置提示信息为输入框内容
                           child: TextFormField(
                             controller: _conversionProgramPathController,
                             decoration: InputDecoration(
                               labelText: '转换程序地址',
                               border: OutlineInputBorder(),
                             ),
-                            onChanged: (value) =>
-                                setState(() => _hasUnsavedChanges = true), // 设置标志
+                            onChanged: (value) => setState(
+                                () => _hasUnsavedChanges = true), // 设置标志
                           ),
                         ),
                       ),
@@ -440,16 +505,18 @@ class SettingsPageState extends State<SettingsPage> {
                   Row(
                     children: <Widget>[
                       Expanded(
-                        child: Tooltip( // 添加 Tooltip 小部件
-                          message: _optimizationProgramPathController.text, // 设置提示信息为输入框内容
+                        child: Tooltip(
+                          // 添加 Tooltip 小部件
+                          message: _optimizationProgramPathController
+                              .text, // 设置提示信息为输入框内容
                           child: TextFormField(
                             controller: _optimizationProgramPathController,
                             decoration: InputDecoration(
                               labelText: '优化程序地址',
                               border: OutlineInputBorder(),
                             ),
-                            onChanged: (value) =>
-                                setState(() => _hasUnsavedChanges = true), // 设置标志
+                            onChanged: (value) => setState(
+                                () => _hasUnsavedChanges = true), // 设置标志
                           ),
                         ),
                       ),
@@ -468,7 +535,7 @@ class SettingsPageState extends State<SettingsPage> {
               ),
             ),
           ),
-          
+
           SizedBox(height: 10), // 添加间距
           Card(
             child: Padding(
@@ -613,7 +680,8 @@ class SettingsPageState extends State<SettingsPage> {
                   SizedBox(height: 8),
                   SwitchListTile(
                     title: Text('启用调试日志'),
-                    value: _enableDebugLoggingController.text.toLowerCase() == 'true',
+                    value: _enableDebugLoggingController.text.toLowerCase() ==
+                        'true',
                     onChanged: (value) {
                       setState(() {
                         _enableDebugLoggingController.text = value.toString();
