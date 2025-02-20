@@ -18,7 +18,7 @@ void main() async {
     size: Size(900, 600), // 设置默认窗口大小
     minimumSize: Size(800, 500), // 设置最小窗口大小
     center: true, // 设置窗口居中
-    title: "window_manager测试Demo", // 设置窗口标题
+    title: "MST上传", // 设置窗口标题
   );
   windowManager.waitUntilReadyToShow(windowOptions, () async {
     await windowManager.show();
@@ -175,7 +175,7 @@ class _MyHomePageState extends State<MyHomePage> {
                   valueListenable: _progressNotifier,
                   builder: (context, progress, child) {
                     return Container(
-                      width: MediaQuery.of(context).size.width * 0.15,
+                      width: MediaQuery.of(context).size.width * 0.25,
                       child: Stack(
                         children: [
                           Positioned.fill(

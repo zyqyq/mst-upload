@@ -278,7 +278,8 @@ void _processFileIsolate(Map<String, dynamic> params) async {
   try {
     // 确保连接在使用前是有效的
     conn = await connectionPool.getConnection();
-    await processFile(filePath, folderPath, conn, showName, name, platformId, settings);
+    await processFile(
+        filePath, folderPath, conn, showName, name, platformId, settings);
     logDebug('文件处理完成: $filePath');
     sendPort.send(true);
   } catch (e, stackTrace) {
@@ -304,7 +305,7 @@ Future<void> processFilesInParallel(
     String platformId,
     Map<String, dynamic> settings,
     ValueNotifier<int> progressNotifier,
-    int processedFiles) async {
+    ValueNotifier<int> processedFilesNotifier,) async {
   final int maxIsolates = Platform.numberOfProcessors ~/ 2; // 动态调整隔离线程数
   final List<Isolate> isolates = [];
   final List<ReceivePort> receivePorts = [];
@@ -315,6 +316,12 @@ Future<void> processFilesInParallel(
   for (final filePath in fileList) {
     if (activeIsolates >= maxIsolates) {
       await receivePorts[0].first;
+      processedFilesNotifier.value++;
+      progressNotifier.value = 
+          ((processedFilesNotifier.value * 90 ~/ totalFiles) + 10).round();;
+
+      // 移除错误的print递增
+      print('Processed: ${processedFilesNotifier.value}'); 
       isolates.removeAt(0).kill(priority: Isolate.immediate);
       receivePorts.removeAt(0);
       activeIsolates--;
@@ -341,11 +348,6 @@ Future<void> processFilesInParallel(
     activeIsolates++;
   }
 
-  for (final receivePort in receivePorts) {
-    await receivePort.first;
-    processedFiles++;
-    progressNotifier.value = (processedFiles * 90 / totalFiles + 10).round();
-  }
 
   for (final isolate in isolates) {
     isolate.kill(priority: Isolate.immediate);
@@ -402,17 +404,15 @@ Future<void> processFiles(
   final fileList = <String>[];
   await _traverseDirectory(folderPath, conn, fileList, name, platformId);
   progressNotifier.value = 10;
-  int processedFiles = 0;
 
   final connectionPool = ConnectionPool(dbParams, maxSize: 5); // 初始化连接池
-
+  final processedFilesNotifier = ValueNotifier(0);
   await processFilesInParallel(fileList, folderPath, connectionPool, showName, name,
-      platformId, _globalSettings, progressNotifier, processedFiles);
+      platformId, _globalSettings, progressNotifier,processedFilesNotifier);
 
   try {
     await conn?.close();
-  } catch (_) {
-  }
+  } catch (_) {}
   logDebug('数据库连接关闭');
 
   final endTime = DateTime.now();
@@ -470,14 +470,12 @@ Future<bool> _isDuplicateRecord(MySqlConnection conn, String filePath,
       return true;
     }
 
-    final dt = DateTime.tryParse(
-      '${dateTimeStr.substring(0, 4)}-'
-      '${dateTimeStr.substring(4, 6)}-'
-      '${dateTimeStr.substring(6, 8)} '
-      '${dateTimeStr.substring(8, 10)}:'
-      '${dateTimeStr.substring(10, 12)}:'
-      '${dateTimeStr.substring(12)}'
-    );
+    final dt = DateTime.tryParse('${dateTimeStr.substring(0, 4)}-'
+        '${dateTimeStr.substring(4, 6)}-'
+        '${dateTimeStr.substring(6, 8)} '
+        '${dateTimeStr.substring(8, 10)}:'
+        '${dateTimeStr.substring(10, 12)}:'
+        '${dateTimeStr.substring(12)}');
 
     if (dt == null) {
       logWarning('无法解析时间戳: $dateTimeStr');
