@@ -6,9 +6,24 @@ import 'dart:async'; // 添加: 引入 Timer 所需的库
 import 'dart:io'; // 添加: 导入 dart:io 库以使用 File
 import 'dart:convert'; // 添加: 导入 dart:convert 库以使用 json
 import 'file_operations.dart';
+import 'package:window_manager/window_manager.dart';
 import 'package:liquid_progress_indicator_v2/liquid_progress_indicator.dart';
 
-void main() {
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await windowManager.ensureInitialized();
+
+  WindowOptions windowOptions = const WindowOptions(
+    size: Size(900, 600), // 设置默认窗口大小
+    minimumSize: Size(800, 500), // 设置最小窗口大小
+    center: true, // 设置窗口居中
+    title: "window_manager测试Demo", // 设置窗口标题
+  );
+  windowManager.waitUntilReadyToShow(windowOptions, () async {
+    await windowManager.show();
+    await windowManager.focus();
+  });
   runApp(MyApp());
 }
 
@@ -19,6 +34,7 @@ class MyApp extends StatelessWidget {
       title: 'MST上传',
       theme: ThemeData(
         primarySwatch: Colors.blue,
+        fontFamily: Platform.isWindows ? 'Microsoft YaHei' : (Platform.isMacOS ? 'PingFang SC' : null),
       ),
       home: MyHomePage(),
     );
@@ -159,6 +175,7 @@ class _MyHomePageState extends State<MyHomePage> {
                   valueListenable: _progressNotifier,
                   builder: (context, progress, child) {
                     return Container(
+                      width: MediaQuery.of(context).size.width * 0.15,
                       child: Stack(
                         children: [
                           Positioned.fill(
