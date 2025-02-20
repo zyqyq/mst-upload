@@ -61,6 +61,7 @@ class SettingsPageState extends State<SettingsPage> {
 
   Future<void> _loadSettings() async {
     final file = File('settings.json');
+
     if (await file.exists()) {
       final contents = await file.readAsString();
       final Map<String, dynamic> settings = json.decode(contents);
@@ -94,6 +95,8 @@ class SettingsPageState extends State<SettingsPage> {
 
   Future<void> _saveSettings() async {
     final file = File('settings.json');
+    // 读取旧的同步频率
+    final oldSettings = await _readSettings();
     final settings = {
       'sourceDataPath': _sourceDataPathController.text,
       'conversionProgramPath': _conversionProgramPathController.text,
@@ -112,6 +115,15 @@ class SettingsPageState extends State<SettingsPage> {
           _optimizationProgramPathController.text, // 保存 优化程序地址
       'enableDebugLogging': _enableDebugLoggingController.text.toLowerCase() ==
           'true', // 保存 enableDebugLogging
+      "L2STTableName": oldSettings["L2STTableName"],
+      "L2STProcessedTableName": oldSettings["L2STProcessedTableName"],
+      "L2MTableName":oldSettings["L2MTableName"],
+      "L2MProcessedTableName": oldSettings["L2MProcessedTableName"],
+      "L1BSTTableName": oldSettings["L1BSTTableName"],
+      "L1BSTProcessedTableName": oldSettings["L1BSTProcessedTableName"],
+      "L1BMTableName": oldSettings["L1BMTableName"],
+      "L1BMProcessedTableName": oldSettings["L1BMProcessedTableName"],
+      "DeviceTableNme": oldSettings["DeviceTableNme"]
     };
 
     // 新增: 编码声明
@@ -125,8 +137,7 @@ class SettingsPageState extends State<SettingsPage> {
       rethrow;
     }
 
-    // 读取旧的同步频率
-    final oldSettings = await _readSettings();
+    
     //final oldSyncFrequency = int.parse(oldSettings['syncFrequency'].toString());
 
     // 检查同步频率是否发生变化

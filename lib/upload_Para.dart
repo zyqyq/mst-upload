@@ -115,7 +115,7 @@ Future<Map<String, dynamic>> readAndProcessFile(
 
   // 添加 show_name 和 Platform_id
   data['show_name'] = showName;
-  data['name'] = showName;
+  data['name'] = name;
   data['Platform_id'] = platformId;
 
   return data;
@@ -155,7 +155,7 @@ Future<void> insertDataToDatabase(
     data['PlsCode'],
     data['PRF'],
     data['PlsAccum'],
-    data['Range'], // 修改: 修正列名 'Ranges' 为 'Range'
+    data['Range'],
     data['GateNum'],
     data['Rmin'],
     data['EleAngle'],

@@ -65,16 +65,20 @@ class _MyHomePageState extends State<MyHomePage> {
   Future<Map<String, dynamic>> _readSettings() async {
     const defaultSettings = <String, dynamic>{};
     final settingsFile = File('settings.json');
-    
+
     try {
       final settingsContent = await settingsFile.readAsString();
-      print(settingsContent);
-      
+      print("同步频率${settingsContent}");
+
       if (settingsContent.trim().isEmpty) {
-        print('settings.json 文件内容为空，使用默认设置');
-        return defaultSettings;
+        final settingsContent = await settingsFile.readAsString();
+        print("同步频率${settingsContent}");
+        if (settingsContent.trim().isEmpty) {
+          print('settings.json 文件内容为空，使用默认设置');
+          return defaultSettings;
+        }
       }
-      
+
       return json.decode(settingsContent) as Map<String, dynamic>;
     } on FileSystemException catch (e) {
       print('文件访问异常: ${e.message}，使用默认设置');
@@ -89,7 +93,8 @@ class _MyHomePageState extends State<MyHomePage> {
     _syncTimer?.cancel(); // 添加: 取消旧的定时器
     final settings = await _readSettings();
     //print(settings);
-    final syncFrequency = int.tryParse(settings['syncFrequency'].toString()) ?? 30;
+    final syncFrequency =
+        int.tryParse(settings['syncFrequency'].toString()) ?? 30;
     print(syncFrequency);
     int _remainingSeconds = syncFrequency * 60;
     _countdownNotifier.value = _remainingSeconds; // 修改: 初始化倒计时
@@ -161,11 +166,16 @@ class _MyHomePageState extends State<MyHomePage> {
                               alignment: Alignment.center,
                               child: LiquidLinearProgressIndicator(
                                 value: progress / 100.0,
-                                valueColor: AlwaysStoppedAnimation(Theme.of(context).primaryColor.withAlpha((0.5 *255).toInt())),
+                                valueColor: AlwaysStoppedAnimation(
+                                    Theme.of(context)
+                                        .primaryColor
+                                        .withAlpha((0.5 * 255).toInt())),
                                 backgroundColor: Theme.of(context)
-                                                  .primaryColor
-                                                  .withAlpha((0.3 * 255).toInt()),
-                                borderColor:Theme.of(context).primaryColor.withAlpha((0.3 *255).toInt()),
+                                    .primaryColor
+                                    .withAlpha((0.3 * 255).toInt()),
+                                borderColor: Theme.of(context)
+                                    .primaryColor
+                                    .withAlpha((0.3 * 255).toInt()),
                                 borderWidth: 0.0,
                                 borderRadius: 0.0,
                                 direction: Axis.vertical,
@@ -249,4 +259,3 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 }
-

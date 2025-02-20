@@ -112,67 +112,67 @@ Future<void> processFile(
     String platformId,
     Map<String, dynamic> settings) async {
   // try {
-    logDebug('开始处理文件: $filePath');
-    if (filePath.contains('L1B')) {
-      logDebug('文件类型: L1B');
-      await uploadL1B(filePath, conn, showName, name, platformId, settings);
-      final newFilePath1 = getRelativeFilePath(filePath, folderPath, 'L1B');
-      final newFileDir1 = path.dirname(newFilePath1);
-      await Directory(newFileDir1).create(recursive: true);
-      logDebug('创建目录: $newFileDir1');
+  logDebug('开始处理文件: $filePath');
+  if (filePath.contains('L1B')) {
+    logDebug('文件类型: L1B');
+    await uploadL1B(filePath, conn, showName, name, platformId, settings);
+    final newFilePath1 = getRelativeFilePath(filePath, folderPath, 'L1B');
+    final newFileDir1 = path.dirname(newFilePath1);
+    await Directory(newFileDir1).create(recursive: true);
+    logDebug('创建目录: $newFileDir1');
 
-      final newFilePath2 = getRelativeFilePath(filePath, folderPath, 'L2');
-      final newFileDir2 = path.dirname(newFilePath2);
-      await Directory(newFileDir2).create(recursive: true);
-      logDebug('创建目录: $newFileDir2');
+    final newFilePath2 = getRelativeFilePath(filePath, folderPath, 'L2');
+    final newFileDir2 = path.dirname(newFilePath2);
+    await Directory(newFileDir2).create(recursive: true);
+    logDebug('创建目录: $newFileDir2');
 
-      try {
-        logDebug(
-            '启动 Python 进程进行优化: ${settings['pythonInterpreterPath']} ${settings['optimizationProgramPath']} $filePath $newFilePath1');
-        final result = await Process.run(settings['pythonInterpreterPath'],
-            [settings['optimizationProgramPath'], filePath, newFilePath1]);
-        if (result.stdout.isNotEmpty) {
-          print('stdout: ${result.stdout}');
-          logDebug('Python 脚本输出: ${result.stdout}');
-        }
-        if (result.stderr.isNotEmpty) {
-          print('stderr: ${result.stderr}');
-          logWarning('Python 脚本错误输出: ${result.stderr}');
-        }
-      } catch (e, stackTrace) {
-        logError('Error running Python script: $e', stackTrace);
+    try {
+      logDebug(
+          '启动 Python 进程进行优化: ${settings['pythonInterpreterPath']} ${settings['optimizationProgramPath']} $filePath $newFilePath1');
+      final result = await Process.run(settings['pythonInterpreterPath'],
+          [settings['optimizationProgramPath'], filePath, newFilePath1]);
+      if (result.stdout.isNotEmpty) {
+        print('stdout: ${result.stdout}');
+        logDebug('Python 脚本输出: ${result.stdout}');
       }
-      await uploadL1B(newFilePath1, conn, showName, name, platformId, settings);
-      logDebug('上传 L1B 文件: $newFilePath1');
-
-      try {
-        logDebug(
-            '启动 Python 进程进行转换: ${settings['pythonInterpreterPath']} ${settings['conversionProgramPath']} $newFilePath1 $newFilePath2');
-        final result = await Process.run(settings['pythonInterpreterPath'],
-            [settings['conversionProgramPath'], newFilePath1, newFilePath2]);
-        if (result.stdout.isNotEmpty) {
-          print('stdout: ${result.stdout}');
-          logDebug('Python 脚本输出: ${result.stdout}');
-        }
-        if (result.stderr.isNotEmpty) {
-          print('stderr: ${result.stderr}');
-          logWarning('Python 脚本错误输出: ${result.stderr}');
-        }
-      } catch (e, stackTrace) {
-        logError('Error running Python script: $e', stackTrace);
+      if (result.stderr.isNotEmpty) {
+        print('stderr: ${result.stderr}');
+        logWarning('Python 脚本错误输出: ${result.stderr}');
       }
-      await uploadL2(newFilePath2, conn, showName, name, platformId,
-          settings); // 修改: 传递 settings 参数
-      logDebug('上传 L2 文件: $newFilePath2');
-      await uploadPara(newFilePath2, conn, showName, name, platformId,
-          settings['DeviceTableNme']);
-      logDebug('上传参数文件: $newFilePath2');
-    } else if (filePath.contains('L2')) {
-      await uploadL2(filePath, conn, showName, name, platformId,
-          settings); // 修改: 传递 settings 参数
-      logDebug('上传 L2 文件: $filePath');
+    } catch (e, stackTrace) {
+      logError('Error running Python script: $e', stackTrace);
     }
-    logDebug('文件处理完成: $filePath');
+    await uploadL1B(newFilePath1, conn, showName, name, platformId, settings);
+    logDebug('上传 L1B 文件: $newFilePath1');
+
+    try {
+      logDebug(
+          '启动 Python 进程进行转换: ${settings['pythonInterpreterPath']} ${settings['conversionProgramPath']} $newFilePath1 $newFilePath2');
+      final result = await Process.run(settings['pythonInterpreterPath'],
+          [settings['conversionProgramPath'], newFilePath1, newFilePath2]);
+      if (result.stdout.isNotEmpty) {
+        print('stdout: ${result.stdout}');
+        logDebug('Python 脚本输出: ${result.stdout}');
+      }
+      if (result.stderr.isNotEmpty) {
+        print('stderr: ${result.stderr}');
+        logWarning('Python 脚本错误输出: ${result.stderr}');
+      }
+    } catch (e, stackTrace) {
+      logError('Error running Python script: $e', stackTrace);
+    }
+    await uploadL2(newFilePath2, conn, showName, name, platformId,
+        settings); // 修改: 传递 settings 参数
+    logDebug('上传 L2 文件: $newFilePath2');
+    await uploadPara(newFilePath2, conn, showName, name, platformId,
+        settings['DeviceTableNme']);
+    logDebug('上传参数文件: $newFilePath2');
+  } else if (filePath.contains('L2')) {
+    await uploadL2(filePath, conn, showName, name, platformId,
+        settings); // 修改: 传递 settings 参数
+    logDebug('上传 L2 文件: $filePath');
+  }
+  logDebug('文件处理完成: $filePath');
   // } catch (e, stackTrace) {
   //   logError('文件处理失败: $filePath', stackTrace);
   // }
@@ -188,7 +188,7 @@ Future<void> processFilesInParallel(
     Map<String, dynamic> settings,
     ValueNotifier<int> progressNotifier,
     int processedFiles) async {
-  final int maxIsolates = 5; // 设置最大线程数
+  final int maxIsolates = 2; // 设置最大线程数
   final List<Isolate> isolates = [];
   final List<ReceivePort> receivePorts = [];
   int totalFiles = fileList.length;
@@ -228,7 +228,7 @@ Future<void> processFilesInParallel(
     await receivePort.first; // 等待每个Isolate完成处理
     processedFiles++;
     progressNotifier.value = (processedFiles * 90 / totalFiles + 10).round();
-    logDebug('Isolate 完成处理: processedFiles=$processedFiles');
+    //logDebug('Isolate 完成处理: processedFiles=$processedFiles');
   }
 
   for (final isolate in isolates) {
@@ -422,16 +422,17 @@ Future<bool> _isDuplicateRecord(MySqlConnection conn, String filePath,
       AND Platform_id = ?
   )
 ''';
-    //logDebug('执行数据库查询: $checkSql');
+    //logDebug('执行数据库查询: ${checkSql} 参数: [$dtStr, $name, $MST, $platformId]');
     final checkResult =
         await conn.query(checkSql, [dtStr, name, MST, platformId]);
     final exists = checkResult.first[0] == 1; // 确保返回值是布尔类型
     //print('$fileName 是否重复:$exists');
     logDebug('$fileName 是否重复:$exists');
-    return exists; // 显式转换为 bool
+    //return exists; // 显式转换为 bool
+    return false;
   } catch (e, stackTrace) {
     final fileName = path.basename(filePath);
-    logError('$fileName 查询过程中发生错误:$e', stackTrace);
-    return false; // 或者根据具体需求处理异常
+    logError('$fileName 查重过程中发生错误:$e', stackTrace);
+    return false;
   }
 }

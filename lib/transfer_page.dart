@@ -45,7 +45,7 @@ class _TransferPageState extends State<TransferPage> {
     _getLastSyncTime().then((lastSyncTime) {
       _lastSyncTimeNotifier.value = lastSyncTime;
     });
-    _connectionCheckTimer = Timer.periodic(Duration(seconds: 60), (_) {
+    _connectionCheckTimer = Timer.periodic(Duration(seconds: 10), (_) {
       _checkDatabaseConnection();
       _getLogSummary().then((summary) {
         _logSummaryNotifier.value = summary;
