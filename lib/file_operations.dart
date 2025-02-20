@@ -133,11 +133,11 @@ Future<void> processFile(
           [settings['optimizationProgramPath'], filePath, newFilePath1]);
       if (result.stdout.isNotEmpty) {
         print('stdout: ${result.stdout}');
-        logDebug('Python 脚本输出: ${result.stdout}');
+        logDebug('处理 $filePath Python 脚本输出: ${result.stdout}');
       }
       if (result.stderr.isNotEmpty) {
         print('stderr: ${result.stderr}');
-        logWarning('Python 脚本错误输出: ${result.stderr}');
+        logWarning('优化 $filePath 时Python脚本错误输出: ${result.stderr}');
       }
     } catch (e, stackTrace) {
       logError('Error running Python script: $e', stackTrace);
@@ -152,11 +152,11 @@ Future<void> processFile(
           [settings['conversionProgramPath'], newFilePath1, newFilePath2]);
       if (result.stdout.isNotEmpty) {
         print('stdout: ${result.stdout}');
-        logDebug('Python 脚本输出: ${result.stdout}');
+        logDebug('处理 $filePath 时Python 脚本输出: ${result.stdout}');
       }
       if (result.stderr.isNotEmpty) {
         print('stderr: ${result.stderr}');
-        logWarning('Python 脚本错误输出: ${result.stderr}');
+        logWarning('转换 $filePath 时Python 脚本错误输出: ${result.stderr}');
       }
     } catch (e, stackTrace) {
       logError('Error running Python script: $e', stackTrace);
@@ -178,28 +178,145 @@ Future<void> processFile(
   // }
 }
 
+// 新增连接池类
+class ConnectionPool {
+  final List<MySqlConnection> _pool = [];
+  final ConnectionSettings _settings;
+  final int _maxSize;
+  final Mutex _lock = Mutex();
+
+  ConnectionPool(this._settings, {int maxSize = 5}) : _maxSize = maxSize;
+
+  Future<MySqlConnection> getConnection() async {
+    await _lock.acquire();
+    try {
+      // 尝试复用空闲连接
+      while (_pool.isNotEmpty) {
+        final conn = _pool.removeLast();
+        try {
+          // 使用简单的查询来检查连接是否有效
+          await conn.query('SELECT 1');
+          return conn;
+        } catch (_) {
+          // 连接无效，关闭并移除
+          await conn.close();
+        }
+      }
+      // 创建新连接
+      final conn = await MySqlConnection.connect(_settings);
+      return conn;
+    } finally {
+      _lock.release();
+    }
+  }
+
+  Future<void> releaseConnection(MySqlConnection conn) async {
+    await _lock.acquire();
+    try {
+      if (_pool.length < _maxSize) {
+        try {
+          // 使用简单的查询来检查连接是否有效
+          await conn.query('SELECT 1');
+          _pool.add(conn);
+        } catch (_) {
+          // 连接无效，关闭并移除
+          await conn.close();
+        }
+      } else {
+        await conn.close();
+      }
+    } finally {
+      _lock.release();
+    }
+  }
+
+  Future<void> closeAll() async {
+    await _lock.acquire();
+    try {
+      for (final conn in _pool) {
+        try {
+          await conn.close();
+        } catch (_) {}
+      }
+      _pool.clear();
+    } finally {
+      _lock.release();
+    }
+  }
+}
+
+// 新增: 定义 _processFileIsolate 函数
+void _processFileIsolate(Map<String, dynamic> params) async {
+  final filePath = params['filePath'];
+  final sendPort = params['sendPort'] as SendPort;
+  final folderPath = params['folderPath'];
+  final showName = params['showName'];
+  final name = params['name'];
+  final platformId = params['platformId'];
+  final settings = params['settings'];
+
+  final dbParams = ConnectionSettings(
+    host: settings['databaseAddress'],
+    port: int.parse(settings['databasePort']),
+    user: settings['databaseUsername'],
+    password: settings['databasePassword'],
+    db: settings['databaseName'],
+  );
+
+  MySqlConnection? conn;
+  try {
+    conn = await MySqlConnection.connect(dbParams);
+    await conn.query('USE `${settings['databaseName']}`');
+    logDebug('数据库连接成功');
+  } catch (e, stackTrace) {
+    logError('无法连接到数据库: $e', stackTrace);
+    sendPort.send(false);
+    return;
+  }
+
+  final connectionPool = ConnectionPool(dbParams, maxSize: 1); // 初始化连接池
+  try {
+    // 确保连接在使用前是有效的
+    conn = await connectionPool.getConnection();
+    await processFile(filePath, folderPath, conn, showName, name, platformId, settings);
+    logDebug('文件处理完成: $filePath');
+    sendPort.send(true);
+  } catch (e, stackTrace) {
+    logError('文件处理失败: $filePath', stackTrace);
+    sendPort.send(false);
+  } finally {
+    try {
+      if (conn != null) {
+        await connectionPool.releaseConnection(conn);
+      }
+    } catch (_) {}
+    logDebug('数据库连接关闭');
+    await connectionPool.closeAll(); // 清理连接池
+  }
+}
+
 Future<void> processFilesInParallel(
     List<String> fileList,
     String folderPath,
-    MySqlConnection conn,
+    ConnectionPool connectionPool, // 修改参数类型
     String showName,
     String name,
     String platformId,
     Map<String, dynamic> settings,
     ValueNotifier<int> progressNotifier,
     int processedFiles) async {
-  final int maxIsolates = 2; // 设置最大线程数
+  final int maxIsolates = Platform.numberOfProcessors ~/ 2; // 动态调整隔离线程数
   final List<Isolate> isolates = [];
   final List<ReceivePort> receivePorts = [];
   int totalFiles = fileList.length;
   int activeIsolates = 0;
 
-  logInfo('开始多线程处理文件');
+  logInfo('开始多线程处理文件，最大线程数 $maxIsolates');
   for (final filePath in fileList) {
     if (activeIsolates >= maxIsolates) {
-      await receivePorts[0].first; // 等待一个Isolate完成处理
-      isolates.removeAt(0).kill(priority: Isolate.immediate); // 杀死完成的Isolate
-      receivePorts.removeAt(0); // 移除对应的ReceivePort
+      await receivePorts[0].first;
+      isolates.removeAt(0).kill(priority: Isolate.immediate);
+      receivePorts.removeAt(0);
       activeIsolates--;
     }
 
@@ -225,68 +342,27 @@ Future<void> processFilesInParallel(
   }
 
   for (final receivePort in receivePorts) {
-    await receivePort.first; // 等待每个Isolate完成处理
+    await receivePort.first;
     processedFiles++;
     progressNotifier.value = (processedFiles * 90 / totalFiles + 10).round();
-    //logDebug('Isolate 完成处理: processedFiles=$processedFiles');
   }
 
   for (final isolate in isolates) {
-    isolate.kill(priority: Isolate.immediate); // 杀死Isolate
+    isolate.kill(priority: Isolate.immediate);
   }
   logInfo('多线程处理文件完成');
-}
-
-void _processFileIsolate(Map<String, dynamic> data) async {
-  final filePath = data['filePath'] as String;
-  final sendPort = data['sendPort'] as SendPort;
-  final folderPath = data['folderPath'] as String;
-  final showName = data['showName'] as String;
-  final name = data['name'] as String;
-  final platformId = data['platformId'] as String;
-  final settings = data['settings'] as Map<String, dynamic>;
-
-  MySqlConnection? conn;
-  try {
-    final dbParams = ConnectionSettings(
-      host: settings['databaseAddress'],
-      port: int.parse(settings['databasePort']),
-      user: settings['databaseUsername'],
-      password: settings['databasePassword'],
-      db: settings['databaseName'],
-    );
-    conn = await MySqlConnection.connect(dbParams);
-    await conn.query('USE ${settings['databaseName']}');
-    logDebug(
-        '数据库连接成功: ${settings['databaseAddress']}:${settings['databasePort']}/${settings['databaseName']}');
-  } catch (e, stackTrace) {
-    logError('无法连接到数据库: $e', stackTrace);
-    sendPort.send(null); // 发送完成信号
-    return;
-  }
-
-  await processFile(filePath, folderPath, conn, showName, name, platformId,
-      settings); // 处理单个文件
-
-  await conn.close(); // 关闭数据库连接
-  sendPort.send(null); // 发送完成信号
-  logDebug(
-      '数据库连接关闭: ${settings['databaseAddress']}:${settings['databasePort']}/${settings['databaseName']}');
 }
 
 // 遍历文件夹并处理数据
 Future<void> processFiles(
     BuildContext context, ValueNotifier<int> progressNotifier) async {
   print("开始处理文件");
-  // 修改: 添加 BuildContext 参数
-  // 读取设置
-  await _initializeSettings(); // 初始化设置
+  await _initializeSettings();
   final showName = _globalSettings['show_name'];
   final name = _globalSettings['name'];
   final platformId = _globalSettings['Platform_id'];
   progressNotifier.value = 0;
 
-  // 定义数据库连接参数
   final dbParams = ConnectionSettings(
     host: _globalSettings['databaseAddress'],
     port: int.parse(_globalSettings['databasePort']),
@@ -295,23 +371,14 @@ Future<void> processFiles(
     db: _globalSettings['databaseName'],
   );
 
-  // 定义需要读取的文件夹路径
   final folderPath = _globalSettings['sourceDataPath'];
-
-  // 记录程序开始时间
   final startTime = DateTime.now();
 
-  // 链接MySQL
   MySqlConnection? conn;
   try {
-    if (conn != null) {
-      await conn!.close();
-    }
     conn = await MySqlConnection.connect(dbParams);
-    //print(settings['databaseName']);
-    await conn.query('USE ${_globalSettings['databaseName']}');
-    logDebug(
-        '数据库连接成功: ${_globalSettings['databaseAddress']}:${_globalSettings['databasePort']}/${_globalSettings['databaseName']}');
+    await conn.query('USE `${_globalSettings['databaseName']}`');
+    logDebug('数据库连接成功');
   } catch (e, stackTrace) {
     logError('无法连接到数据库: $e', stackTrace);
     showDialog(
@@ -332,45 +399,31 @@ Future<void> processFiles(
     return;
   }
 
-  // 定义文件列表
   final fileList = <String>[];
-
-  // 递归遍历文件夹
   await _traverseDirectory(folderPath, conn, fileList, name, platformId);
   progressNotifier.value = 10;
-  // 更新总文件数
   int processedFiles = 0;
 
-  //print(fileList);
+  final connectionPool = ConnectionPool(dbParams, maxSize: 5); // 初始化连接池
 
-  // 使用多线程处理文件列表
-  await processFilesInParallel(fileList, folderPath, conn, showName, name,
+  await processFilesInParallel(fileList, folderPath, connectionPool, showName, name,
       platformId, _globalSettings, progressNotifier, processedFiles);
 
-  // 关闭游标和连接
-  await conn.close();
-  logDebug(
-      '数据库连接关闭: ${_globalSettings['databaseAddress']}:${_globalSettings['databasePort']}/${_globalSettings['databaseName']}');
+  try {
+    await conn?.close();
+  } catch (_) {
+  }
+  logDebug('数据库连接关闭');
 
-  // 记录程序结束时间
   final endTime = DateTime.now();
-
-  // 计算并打印程序运行时间
   final runTime = endTime.difference(startTime).inMilliseconds;
   print('所有文件处理完成，程序运行时间：${runTime / 1000.0}秒');
 
-  // 新增: 记录日志信息
-  final logContent = '''
-${startTime.toIso8601String()} 处理文件总数: ${fileList.length} 程序运行时间: ${runTime / 1000.0}秒
-处理文件列表: ${fileList.join(', ')}
-  ''';
-
-  // 新增: 将日志信息写入文件
-  final logFile = File(logFilePath);
-  // await logFile.writeAsString(logContent, mode: FileMode.append);
   logInfo('所有文件处理完成，程序运行时间: ${runTime / 1000.0}秒 处理文件总数: ${fileList.length}');
 
   progressNotifier.value = 0;
+
+  await connectionPool.closeAll(); // 清理连接池
 }
 
 // 递归遍历文件夹
@@ -404,35 +457,52 @@ Future<void> _traverseDirectory(String dirPath, MySqlConnection conn,
 Future<bool> _isDuplicateRecord(MySqlConnection conn, String filePath,
     String name, String platformId) async {
   try {
-    final fileName = path.basename(filePath); // 使用path.basename获取文件名
-    final dateTimeStr = fileName.split('_')[5];
-    final dt = DateTime.parse(
-        '${dateTimeStr.substring(0, 4)}-${dateTimeStr.substring(4, 6)}-${dateTimeStr.substring(6, 8)} ${dateTimeStr.substring(8, 10)}:${dateTimeStr.substring(10, 12)}:${dateTimeStr.substring(12)}');
-    final dtStr = dt.toIso8601String();
+    final fileName = path.basename(filePath);
+    final parts = fileName.split('_');
+    if (parts.length < 6) {
+      logWarning('文件名格式错误: $fileName');
+      return true;
+    }
 
-    final MSTStr = fileName.split('_')[5];
+    final dateTimeStr = parts[5];
+    if (dateTimeStr.length != 14) {
+      logWarning('时间戳格式错误: $dateTimeStr');
+      return true;
+    }
+
+    final dt = DateTime.tryParse(
+      '${dateTimeStr.substring(0, 4)}-'
+      '${dateTimeStr.substring(4, 6)}-'
+      '${dateTimeStr.substring(6, 8)} '
+      '${dateTimeStr.substring(8, 10)}:'
+      '${dateTimeStr.substring(10, 12)}:'
+      '${dateTimeStr.substring(12)}'
+    );
+
+    if (dt == null) {
+      logWarning('无法解析时间戳: $dateTimeStr');
+      return true;
+    }
+
+    final MSTStr = parts[5];
     final MST = MSTStr == 'M' ? 0 : 1;
     final checkSql = '''
-  SELECT EXISTS(
-    SELECT 1 
-    FROM smos_radar_qzgcz_device2 
-    WHERE Time = ? 
-      AND name = ? 
-      AND MST = ? 
-      AND Platform_id = ?
-  )
-''';
-    //logDebug('执行数据库查询: ${checkSql} 参数: [$dtStr, $name, $MST, $platformId]');
-    final checkResult =
-        await conn.query(checkSql, [dtStr, name, MST, platformId]);
-    final exists = checkResult.first[0] == 1; // 确保返回值是布尔类型
-    //print('$fileName 是否重复:$exists');
-    logDebug('$fileName 是否重复:$exists');
-    //return exists; // 显式转换为 bool
-    return false;
+      SELECT COUNT(*) 
+      FROM `${_globalSettings['DeviceTableNme']}`
+      WHERE Time = ? 
+        AND name = ? 
+        AND MST = ? 
+        AND Platform_id = ?
+    ''';
+
+    final result = await conn.query(
+      checkSql,
+      [dt.toUtc(), name, MST, platformId],
+    );
+
+    return (result.first[0] as int) > 0;
   } catch (e, stackTrace) {
-    final fileName = path.basename(filePath);
-    logError('$fileName 查重过程中发生错误:$e', stackTrace);
-    return false;
+    logError('查重失败: $e', stackTrace);
+    return true;
   }
 }
