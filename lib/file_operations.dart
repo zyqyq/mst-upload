@@ -111,6 +111,7 @@ Future<void> processFile(
     String name,
     String platformId,
     Map<String, dynamic> settings) async {
+  print("a");
   // try {
   logDebug('开始处理文件: $filePath');
   if (filePath.contains('L1B')) {
@@ -167,6 +168,7 @@ Future<void> processFile(
     await uploadPara(newFilePath2, conn, showName, name, platformId,
         settings['DeviceTableNme']);
     logDebug('上传参数文件: $newFilePath2');
+    print('上传参数文件: $newFilePath2');
   } else if (filePath.contains('L2')) {
     await uploadL2(filePath, conn, showName, name, platformId,
         settings); // 修改: 传递 settings 参数
@@ -274,10 +276,11 @@ void _processFileIsolate(Map<String, dynamic> params) async {
     return;
   }
 
-  final connectionPool = ConnectionPool(dbParams, maxSize: 1); // 初始化连接池
+  final connectionPool = ConnectionPool(dbParams, maxSize: 5); // 初始化连接池
   try {
     // 确保连接在使用前是有效的
     conn = await connectionPool.getConnection();
+    print("b");
     await processFile(
         filePath, folderPath, conn, showName, name, platformId, settings);
     logDebug('文件处理完成: $filePath');
@@ -297,15 +300,16 @@ void _processFileIsolate(Map<String, dynamic> params) async {
 }
 
 Future<void> processFilesInParallel(
-    List<String> fileList,
-    String folderPath,
-    ConnectionPool connectionPool, // 修改参数类型
-    String showName,
-    String name,
-    String platformId,
-    Map<String, dynamic> settings,
-    ValueNotifier<int> progressNotifier,
-    ValueNotifier<int> processedFilesNotifier,) async {
+  List<String> fileList,
+  String folderPath,
+  ConnectionPool connectionPool, // 修改参数类型
+  String showName,
+  String name,
+  String platformId,
+  Map<String, dynamic> settings,
+  ValueNotifier<int> progressNotifier,
+  ValueNotifier<int> processedFilesNotifier,
+) async {
   final int maxIsolates = Platform.numberOfProcessors ~/ 2; // 动态调整隔离线程数
   final List<Isolate> isolates = [];
   final List<ReceivePort> receivePorts = [];
@@ -317,11 +321,12 @@ Future<void> processFilesInParallel(
     if (activeIsolates >= maxIsolates) {
       await receivePorts[0].first;
       processedFilesNotifier.value++;
-      progressNotifier.value = 
-          ((processedFilesNotifier.value * 90 ~/ totalFiles) + 10).round();;
+      progressNotifier.value =
+          ((processedFilesNotifier.value * 90 ~/ totalFiles) + 10).round();
+      ;
 
       // 移除错误的print递增
-      print('Processed: ${processedFilesNotifier.value}'); 
+      //print('Processed: ${processedFilesNotifier.value}');
       isolates.removeAt(0).kill(priority: Isolate.immediate);
       receivePorts.removeAt(0);
       activeIsolates--;
@@ -347,7 +352,6 @@ Future<void> processFilesInParallel(
 
     activeIsolates++;
   }
-
 
   for (final isolate in isolates) {
     isolate.kill(priority: Isolate.immediate);
@@ -407,8 +411,16 @@ Future<void> processFiles(
 
   final connectionPool = ConnectionPool(dbParams, maxSize: 5); // 初始化连接池
   final processedFilesNotifier = ValueNotifier(0);
-  await processFilesInParallel(fileList, folderPath, connectionPool, showName, name,
-      platformId, _globalSettings, progressNotifier,processedFilesNotifier);
+  await processFilesInParallel(
+      fileList,
+      folderPath,
+      connectionPool,
+      showName,
+      name,
+      platformId,
+      _globalSettings,
+      progressNotifier,
+      processedFilesNotifier);
 
   try {
     await conn?.close();
@@ -447,7 +459,7 @@ Future<void> _traverseDirectory(String dirPath, MySqlConnection conn,
         }
       }
     }
-    logDebug('目录遍历完成: $dirPath');
+    logDebug('目录遍历完成: $dirPath $fileList');
   } catch (e, stackTrace) {
     logError('目录遍历失败: $dirPath', stackTrace);
   }
@@ -457,7 +469,7 @@ Future<void> _traverseDirectory(String dirPath, MySqlConnection conn,
 Future<bool> _isDuplicateRecord(MySqlConnection conn, String filePath,
     String name, String platformId) async {
   try {
-    final fileName = path.basename(filePath);
+    final fileName = path.basenameWithoutExtension(filePath);
     final parts = fileName.split('_');
     if (parts.length < 6) {
       logWarning('文件名格式错误: $fileName');
@@ -481,24 +493,27 @@ Future<bool> _isDuplicateRecord(MySqlConnection conn, String filePath,
       logWarning('无法解析时间戳: $dateTimeStr');
       return true;
     }
-
-    final MSTStr = parts[5];
+    final dtStr = dt.toIso8601String();
+    final MSTStr = parts[7];
     final MST = MSTStr == 'M' ? 0 : 1;
     final checkSql = '''
-      SELECT COUNT(*) 
-      FROM `${_globalSettings['DeviceTableNme']}`
-      WHERE Time = ? 
-        AND name = ? 
-        AND MST = ? 
-        AND Platform_id = ?
+      SELECT EXISTS(
+        SELECT 1 
+        FROM smos_radar_qzgcz_device2 
+        WHERE Time = ? 
+          AND name = ? 
+          AND MST = ? 
+          AND Platform_id = ?
+      )
     ''';
-
-    final result = await conn.query(
-      checkSql,
-      [dt.toUtc(), name, MST, platformId],
-    );
-
-    return (result.first[0] as int) > 0;
+    //logDebug('执行数据库查询: ${checkSql} 参数: [$dtStr, $name, $MSTStr, $platformId]');
+    final checkResult =
+        await conn.query(checkSql, [dtStr, name, MST, platformId]);
+    final exists = checkResult.first[0] == 1; // 确保返回值是布尔类型
+    //print('$fileName 是否重复:$exists');
+    logDebug('$fileName 是否重复:$exists');
+    return exists; // 显式转换为 bool
+    //return false;
   } catch (e, stackTrace) {
     logError('查重失败: $e', stackTrace);
     return true;
