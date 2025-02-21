@@ -103,14 +103,14 @@ Future<Map<String, dynamic>> readAndProcessFile(
   data['SpAverage'] = int.parse(obs_parameters[9]);
 
   // 提取时间
-  final fileName = path.basename(file.path); // 使用path.basename获取文件名
+  final fileName = path.basenameWithoutExtension(file.path); // 使用path.basename获取文件名
   final dateTimeStr = fileName.split('_')[5];
   final dt = DateTime.parse(
       '${dateTimeStr.substring(0, 4)}-${dateTimeStr.substring(4, 6)}-${dateTimeStr.substring(6, 8)} ${dateTimeStr.substring(8, 10)}:${dateTimeStr.substring(10, 12)}:${dateTimeStr.substring(12)}');
   data['Time'] = dt.toIso8601String();
 
   // 提取MST
-  final MSTStr = fileName.split('_')[5];
+  final MSTStr = fileName.split('_')[7];
   data['MST'] = MSTStr == 'M' ? 0 : 1;
 
   // 添加 show_name 和 Platform_id

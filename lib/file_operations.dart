@@ -180,50 +180,73 @@ Future<void> processFile(
   // }
 }
 
-// 新增连接池类
+
+// 连接池类改进
 class ConnectionPool {
   final List<MySqlConnection> _pool = [];
   final ConnectionSettings _settings;
   final int _maxSize;
   final Mutex _lock = Mutex();
+  final Stopwatch _validationTimer = Stopwatch()..start();
 
-  ConnectionPool(this._settings, {int maxSize = 5}) : _maxSize = maxSize;
+  ConnectionPool(this._settings, {int maxSize = 3}) : _maxSize = maxSize;
 
   Future<MySqlConnection> getConnection() async {
     await _lock.acquire();
     try {
-      // 尝试复用空闲连接
+      // 定期全量验证(每5分钟)
+      if (_validationTimer.elapsed.inMinutes >= 5) {
+        await _validatePool();
+        _validationTimer.reset();
+      }
+
       while (_pool.isNotEmpty) {
         final conn = _pool.removeLast();
-        try {
-          // 使用简单的查询来检查连接是否有效
-          await conn.query('SELECT 1');
+        if (await _isConnectionValid(conn)) {
           return conn;
-        } catch (_) {
-          // 连接无效，关闭并移除
+        }
+      }
+      return await MySqlConnection.connect(_settings);
+    } finally {
+      _lock.release();
+    }
+  }
+
+  Future<void> _validatePool() async {
+    await _lock.acquire();
+    try {
+      final validConnections = <MySqlConnection>[];
+      for (final conn in _pool) {
+        if (await _isConnectionValid(conn)) {
+          validConnections.add(conn);
+        } else {
           await conn.close();
         }
       }
-      // 创建新连接
-      final conn = await MySqlConnection.connect(_settings);
-      return conn;
+      _pool
+        ..clear()
+        ..addAll(validConnections);
+      logDebug('连接池验证完成，有效连接数: ${_pool.length}');
     } finally {
       _lock.release();
+    }
+  }
+
+  Future<bool> _isConnectionValid(MySqlConnection conn) async {
+    try {
+      await conn.query('SELECT 1, NOW()'); // 增强型心跳检测
+      return true;
+    } catch (_) {
+      await conn.close();
+      return false;
     }
   }
 
   Future<void> releaseConnection(MySqlConnection conn) async {
     await _lock.acquire();
     try {
-      if (_pool.length < _maxSize) {
-        try {
-          // 使用简单的查询来检查连接是否有效
-          await conn.query('SELECT 1');
-          _pool.add(conn);
-        } catch (_) {
-          // 连接无效，关闭并移除
-          await conn.close();
-        }
+      if (await _isConnectionValid(conn) && _pool.length < _maxSize) {
+        _pool.add(conn);
       } else {
         await conn.close();
       }
@@ -232,6 +255,7 @@ class ConnectionPool {
     }
   }
 
+  // 新增closeAll方法
   Future<void> closeAll() async {
     await _lock.acquire();
     try {
@@ -256,7 +280,8 @@ void _processFileIsolate(Map<String, dynamic> params) async {
   final name = params['name'];
   final platformId = params['platformId'];
   final settings = params['settings'];
-
+  final connectionPool = params['connectionPool'] as ConnectionPool;
+  
   final dbParams = ConnectionSettings(
     host: settings['databaseAddress'],
     port: int.parse(settings['databasePort']),
@@ -264,22 +289,24 @@ void _processFileIsolate(Map<String, dynamic> params) async {
     password: settings['databasePassword'],
     db: settings['databaseName'],
   );
-
-  MySqlConnection? conn;
+  print("d");
+  //MySqlConnection conn;
+  final conn = await connectionPool.getConnection();
   try {
-    conn = await MySqlConnection.connect(dbParams);
+    final conn = await connectionPool.getConnection();
     await conn.query('USE `${settings['databaseName']}`');
     logDebug('数据库连接成功');
+    print("e");
   } catch (e, stackTrace) {
     logError('无法连接到数据库: $e', stackTrace);
     sendPort.send(false);
     return;
   }
 
-  final connectionPool = ConnectionPool(dbParams, maxSize: 5); // 初始化连接池
+  //final connectionPool = ConnectionPool(dbParams, maxSize: 5); // 初始化连接池
   try {
     // 确保连接在使用前是有效的
-    conn = await connectionPool.getConnection();
+    final conn = await connectionPool.getConnection();
     print("b");
     await processFile(
         filePath, folderPath, conn, showName, name, platformId, settings);
@@ -295,7 +322,7 @@ void _processFileIsolate(Map<String, dynamic> params) async {
       }
     } catch (_) {}
     logDebug('数据库连接关闭');
-    await connectionPool.closeAll(); // 清理连接池
+    //await connectionPool.releaseConnection(conn); // 清理连接池
   }
 }
 
@@ -323,9 +350,6 @@ Future<void> processFilesInParallel(
       processedFilesNotifier.value++;
       progressNotifier.value =
           ((processedFilesNotifier.value * 90 ~/ totalFiles) + 10).round();
-      ;
-
-      // 移除错误的print递增
       //print('Processed: ${processedFilesNotifier.value}');
       isolates.removeAt(0).kill(priority: Isolate.immediate);
       receivePorts.removeAt(0);
@@ -345,12 +369,18 @@ Future<void> processFilesInParallel(
         'name': name,
         'platformId': platformId,
         'settings': settings,
+        'connectionPool': connectionPool,
       },
     ));
     logDebug('启动 Isolate: $filePath');
     print('启动 Isolate: $filePath');
 
     activeIsolates++;
+  }
+
+  // 等待所有 ReceivePort 收到消息
+  for (final receivePort in receivePorts) {
+    await receivePort.first;
   }
 
   for (final isolate in isolates) {
@@ -368,7 +398,6 @@ Future<void> processFiles(
   final name = _globalSettings['name'];
   final platformId = _globalSettings['Platform_id'];
   progressNotifier.value = 0;
-
   final dbParams = ConnectionSettings(
     host: _globalSettings['databaseAddress'],
     port: int.parse(_globalSettings['databasePort']),
@@ -376,6 +405,9 @@ Future<void> processFiles(
     password: _globalSettings['databasePassword'],
     db: _globalSettings['databaseName'],
   );
+  final connectionPool = ConnectionPool(dbParams, maxSize: Platform.numberOfProcessors * 2);
+  
+    
 
   final folderPath = _globalSettings['sourceDataPath'];
   final startTime = DateTime.now();
@@ -409,7 +441,7 @@ Future<void> processFiles(
   await _traverseDirectory(folderPath, conn, fileList, name, platformId);
   progressNotifier.value = 10;
 
-  final connectionPool = ConnectionPool(dbParams, maxSize: 5); // 初始化连接池
+  //final connectionPool = ConnectionPool(dbParams, maxSize: 5); // 初始化连接池
   final processedFilesNotifier = ValueNotifier(0);
   await processFilesInParallel(
       fileList,
@@ -506,7 +538,7 @@ Future<bool> _isDuplicateRecord(MySqlConnection conn, String filePath,
           AND Platform_id = ?
       )
     ''';
-    //logDebug('执行数据库查询: ${checkSql} 参数: [$dtStr, $name, $MSTStr, $platformId]');
+    logDebug('执行数据库查询: ${checkSql} 参数: [$dtStr, $name, $MSTStr, $platformId]');
     final checkResult =
         await conn.query(checkSql, [dtStr, name, MST, platformId]);
     final exists = checkResult.first[0] == 1; // 确保返回值是布尔类型
