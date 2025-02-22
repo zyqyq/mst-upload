@@ -19,18 +19,18 @@ class _HistoryPageState extends State<HistoryPage> {
     _loadLog();
   }
 
-  Future<void> _loadLog() async {
+  // 修改: _loadLog 方法返回 Future<String>
+  Future<String> _loadLog() async {
     final file = File('process_log.txt');
     if (await file.exists()) {
       final contents = await file.readAsString();
       final lines = contents.split('\n');
-   final filteredLines =
+      final filteredLines =
           lines.where((line) => line.trim().isNotEmpty).toList();
       // 倒序排列日志行
-      setState(() {
-        _logController.text = filteredLines.reversed.toList().join('\n');
-      });
+      return filteredLines.reversed.toList().join('\n');
     }
+    return ''; // 如果文件不存在，返回空字符串
   }
 
   // 新增: 清除日志内容的方法
@@ -93,6 +93,20 @@ class _HistoryPageState extends State<HistoryPage> {
     }
   }
 
+  // 修改: 根据日志级别设置不同的颜色
+  Color _getLogColor(String line) {
+    if (line.contains('INFO')) {
+      return Colors.green[100]!;
+    } else if (line.contains('DEBUG')) {
+      return Colors.blue[100]!;
+    } else if (line.contains('ERROR')) {
+      return Colors.red[100]!;
+    } else if (line.contains('WARNING')) {
+      return Colors.orange[100]!;
+    }
+    return Colors.white;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -122,14 +136,26 @@ class _HistoryPageState extends State<HistoryPage> {
           mainAxisAlignment: MainAxisAlignment.start,
           children: <Widget>[
             Expanded(
-              child: TextField(
-                controller: _logController,
-                decoration: InputDecoration(
-                  labelText: '处理日志',
-                  border: OutlineInputBorder(),
-                ),
-                maxLines: null,
-                readOnly: true,
+              child: FutureBuilder<String>(
+                future: _loadLog(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.done) {
+                    final lines = snapshot.data?.split('\n') ?? [];
+                    return ListView.builder(
+                      itemCount: lines.length,
+                      itemBuilder: (context, index) {
+                        final line = lines[index];
+                        return Container(
+                          color: _getLogColor(line),
+                          padding: EdgeInsets.symmetric(vertical: 4.0),
+                          child: Text(line),
+                        );
+                      },
+                    );
+                  } else {
+                    return Center(child: CircularProgressIndicator());
+                  }
+                },
               ),
             ),
           ],

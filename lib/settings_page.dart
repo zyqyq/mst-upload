@@ -117,7 +117,7 @@ class SettingsPageState extends State<SettingsPage> {
           'true', // 保存 enableDebugLogging
       "L2STTableName": oldSettings["L2STTableName"],
       "L2STProcessedTableName": oldSettings["L2STProcessedTableName"],
-      "L2MTableName":oldSettings["L2MTableName"],
+      "L2MTableName": oldSettings["L2MTableName"],
       "L2MProcessedTableName": oldSettings["L2MProcessedTableName"],
       "L1BSTTableName": oldSettings["L1BSTTableName"],
       "L1BSTProcessedTableName": oldSettings["L1BSTProcessedTableName"],
@@ -137,7 +137,6 @@ class SettingsPageState extends State<SettingsPage> {
       rethrow;
     }
 
-    
     //final oldSyncFrequency = int.parse(oldSettings['syncFrequency'].toString());
 
     // 检查同步频率是否发生变化
@@ -706,6 +705,7 @@ class SettingsPageState extends State<SettingsPage> {
                     onChanged: (value) {
                       setState(() {
                         _enableDebugLoggingController.text = value.toString();
+                        //_saveSettings();
                         _hasUnsavedChanges = true; // 设置标志
                       });
                     },
