@@ -120,7 +120,6 @@ Future<void> processFile(
     logger.debug('上传 L2 文件: $fileName');
   }
   logger.debug('文件处理完成: $fileName');
-  logger.prints();
   // } catch (e, stackTrace) {
   //   logger.error('文件处理失败: $filePath', stackTrace);
   // }
@@ -282,12 +281,8 @@ Future<void> processFilesInParallel(
   // 主线程设置接收端口
   final mainReceivePort = ReceivePort();
   mainReceivePort.listen((data) async {
-    if (data is List<String>) {
-      final file = File('process_log.txt');
-      for (final logEntry in data) {
-        await file.writeAsString(logEntry, mode: FileMode.append);
-      }
-    }
+    logger.syncState(data);
+    logger.writeLogsToFile();
   });
 
   for (final filePath in fileList) {
@@ -419,6 +414,7 @@ Future<void> processFiles(
       .info('所有文件处理完成，程序运行时间: ${runTime / 1000.0}秒 处理文件总数: ${fileList.length}');
 
   progressNotifier.value = 0;
+  logger.writeLogsToFile();
 
   await connectionPool.closeAll(); // 清理连接池
 }
@@ -517,8 +513,7 @@ class Logger {
   // 基本日志写入函数
   void _log(String level, String message, [StackTrace? stackTrace]) {
     final logEntry =
-        '[${DateTime.now().toIso8601String()}] $level: $message${stackTrace != null ? '\n$stackTrace' : ''}';
-    print("log:$logEntry");
+        '\n[${DateTime.now().toIso8601String()}] $level: $message${stackTrace != null ? '\n$stackTrace' : ''}';
     _logCache.add(logEntry);
   }
 
@@ -530,12 +525,9 @@ class Logger {
   void debug(String message) {
     if (_globalSettings['enableDebugLogging'] != null) {
       if (_globalSettings['enableDebugLogging'] == true) {
-        print('f');
         _log('DEBUG', message);
       }
-    }
-    else if(_isDebug){
-      print('f');
+    } else if (_isDebug) {
       _log('DEBUG', message);
     }
   }
@@ -545,17 +537,21 @@ class Logger {
 
   // 新增: 将日志信息发送到主线程
   void flushLogs(SendPort sendPort) {
-    print('j');
     if (_logCache.isNotEmpty) {
-      print('h');
       sendPort.send(_logCache);
       _logCache.clear();
     }
   }
 
-  void prints() {
-    print(_logCache);
+  void syncState(List<String> other) {
+    _logCache.addAll(other);
   }
 
-  void writeLogsToFile(String filePath) async {}
+  void writeLogsToFile() async {
+    final file = File('process_log.txt');
+    for (final logEntry in _logCache) {
+      await file.writeAsString(logEntry, mode: FileMode.append);
+    }
+    _logCache.clear();
+  }
 }
