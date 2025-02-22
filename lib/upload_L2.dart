@@ -13,6 +13,7 @@ double _parseDouble(String str) {
 Future<void> uploadL2(String newFilePath2, MySqlConnection conn, String showName, String name, String platformId,Map<String, dynamic> settings) async {
 
   final fileName = path.basenameWithoutExtension(newFilePath2);
+  print(fileName);
   String tableName;
 
    if (fileName.endsWith('ST')) {
