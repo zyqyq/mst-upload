@@ -74,7 +74,7 @@ class _HistoryPageState extends State<HistoryPage> {
 
   // 新增: 打开日志文件的方法
   Future<void> _openLog() async {
-    final directory = await getApplicationDocumentsDirectory();
+    final directory = Directory.current;
     final file = File(path.join(directory.path, 'process_log.txt'));
     print(file.path);
     if (await file.exists()) {
@@ -136,6 +136,8 @@ class _HistoryPageState extends State<HistoryPage> {
           mainAxisAlignment: MainAxisAlignment.start,
           children: <Widget>[
             Expanded(
+              child: ClipRRect(
+              borderRadius: BorderRadius.circular(10.0), // 设置圆角
               child: FutureBuilder<String>(
                 future: _loadLog(),
                 builder: (context, snapshot) {
@@ -148,7 +150,10 @@ class _HistoryPageState extends State<HistoryPage> {
                         return Container(
                           color: _getLogColor(line),
                           padding: EdgeInsets.symmetric(vertical: 4.0),
-                          child: Text(line),
+                          child:SelectableText( // 使用 SelectableText 支持复制
+                            line,
+                            style: TextStyle(fontSize: 14.0),
+                          ),
                         );
                       },
                     );
@@ -157,6 +162,7 @@ class _HistoryPageState extends State<HistoryPage> {
                   }
                 },
               ),
+            ),
             ),
           ],
         ),
