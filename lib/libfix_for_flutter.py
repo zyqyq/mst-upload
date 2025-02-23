@@ -9,10 +9,10 @@ import os
 from datetime import datetime
 import argparse
 
-count10=0#原始数据
-count0=0#去除3NaN后的数
-count=0#记录LOF去除的点
-count1=0#记录SECOND去除的点
+count10=0#原始数据RecordNumber
+count0=0#去除3NaN后的数RecordNumProcessed
+count=0#记录LOF去除的点Lof_delete_dot
+count1=0#记录SECOND去除的点Seconded_delete_dot
 prefactor=0#处理前有关对称度的参数，NaN不参与
 aftfactor=0#处理后与对称度有关的参数，NaN不参与
 def read_data(filename):
@@ -104,6 +104,7 @@ def correct_DBS(data,eps=0.9,min=5):
     """校正数据并移除异常值"""
     # 假设速度列是第 3、6、9、12 和 15 列（从0开始计数）
     #eps = np.finfo(np.float64).eps
+    global count
     velocity_columns = [2, 5, 8, 11, 14]
     outlier_indices = {}
     # 移除包含 NaN 值的行
@@ -136,6 +137,7 @@ def correct_DBS(data,eps=0.9,min=5):
             if i in outlier_indices[col]:
                 # 如果速度值被标记为异常，则将其设置为 NaN 并记录
                 new_row[col] = np.nan
+                count=count+1
                 removed_values.append((row[0], row[col]))
         processed_data.append(new_row)
 
