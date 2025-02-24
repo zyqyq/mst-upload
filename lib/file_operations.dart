@@ -227,6 +227,7 @@ void _processFileIsolate(Map<String, dynamic> params) async {
   final settings = params['settings'];
   final connectionPool = params['connectionPool'] as ConnectionPool;
   final logger = Logger(isDebug: settings["enableDebugLogging"]);
+  //print(settings["enableDebugLogging"]);
   final conn = await connectionPool.getConnection();
   try {
     await conn.query('USE `${settings['databaseName']}`');
@@ -385,7 +386,7 @@ Future<void> processFiles(
   }
 
   final fileList = <String>[];
-  await _traverseDirectory(folderPath, conn, fileList, name, platformId);
+  await _traverseDirectory(folderPath, conn, fileList, name, platformId,_globalSettings['DeviceTableName']);
   progressNotifier.value = 10;
 
   //final connectionPool = ConnectionPool(dbParams, maxSize: 5); // 初始化连接池
@@ -421,19 +422,19 @@ Future<void> processFiles(
 
 // 递归遍历文件夹
 Future<void> _traverseDirectory(String dirPath, MySqlConnection conn,
-    List<String> fileList, String name, String platformId) async {
+    List<String> fileList, String name, String platformId,String DeviceTableName) async {
   try {
     logger.info('开始遍历目录: $dirPath');
     final dir = Directory(dirPath);
     final files = await dir.list().toList();
     for (final file in files) {
       if (file is Directory) {
-        await _traverseDirectory(file.path, conn, fileList, name, platformId);
+        await _traverseDirectory(file.path, conn, fileList, name, platformId,DeviceTableName);
       } else if (file.path.endsWith('.txt') || file.path.endsWith('.TXT')) {
         final filePath = file.path;
         // 检查是否重复
-        final isDuplicate =
-            await _isDuplicateRecord(conn, filePath, name, platformId);
+        final isDuplicate = await _isDuplicateRecord(conn, filePath, name,
+            platformId, DeviceTableName);
         if (!isDuplicate) {
           fileList.add(filePath);
           logger.debug('添加文件到处理列表: $filePath');
@@ -448,7 +449,7 @@ Future<void> _traverseDirectory(String dirPath, MySqlConnection conn,
 
 // 检查是否重复记录
 Future<bool> _isDuplicateRecord(MySqlConnection conn, String filePath,
-    String name, String platformId) async {
+    String name, String platformId, String DeviceTableName) async {
   try {
     final fileName = path.basenameWithoutExtension(filePath);
     final parts = fileName.split('_');
@@ -477,10 +478,11 @@ Future<bool> _isDuplicateRecord(MySqlConnection conn, String filePath,
     final dtStr = dt.toIso8601String();
     final MSTStr = parts[7];
     final MST = MSTStr == 'M' ? 0 : 1;
+    //print(DeviceTableName);
     final checkSql = '''
       SELECT EXISTS(
         SELECT 1 
-        FROM smos_radar_qzgcz_device2 
+        FROM `${DeviceTableName}`
         WHERE Time = ? 
           AND name = ? 
           AND MST = ? 

@@ -123,7 +123,7 @@ class SettingsPageState extends State<SettingsPage> {
       "L1BSTProcessedTableName": oldSettings["L1BSTProcessedTableName"],
       "L1BMTableName": oldSettings["L1BMTableName"],
       "L1BMProcessedTableName": oldSettings["L1BMProcessedTableName"],
-      "DeviceTableNme": oldSettings["DeviceTableNme"]
+      "DeviceTableName": oldSettings["DeviceTableName"]
     };
 
     // 新增: 编码声明

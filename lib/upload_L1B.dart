@@ -1,12 +1,10 @@
 import 'dart:io';
-import 'dart:convert';
 import 'package:mysql1/mysql1.dart';
 import 'package:path/path.dart' as path;
-//import 'package:mysql_client/mysql_client.dart';
 
 // 处理单个文件并插入数据库
 Future<void> uploadL1B(String filePath, MySqlConnection conn, String showName,
-    String name, String platformId,Map<String, dynamic> settings) async {
+    String name, String platformId, Map<String, dynamic> settings) async {
   final data = await readAndProcessFile(filePath, showName, name, platformId);
   final fileName = path.basenameWithoutExtension(filePath);
   String tableName;
@@ -40,7 +38,8 @@ Future<Map<String, dynamic>> readAndProcessFile(
   // 提取时间信息
   final fileName = path.basename(filePath);
   final dateTimeStr = fileName.split('_')[5]; // 修改: 提取正确的日期时间部分
-  final dt = DateTime.parse('${dateTimeStr.substring(0, 4)}-${dateTimeStr.substring(4, 6)}-${dateTimeStr.substring(6, 8)}T${dateTimeStr.substring(8, 10)}:${dateTimeStr.substring(10, 12)}:${dateTimeStr.substring(12, 14)}');
+  final dt = DateTime.parse(
+      '${dateTimeStr.substring(0, 4)}-${dateTimeStr.substring(4, 6)}-${dateTimeStr.substring(6, 8)}T${dateTimeStr.substring(8, 10)}:${dateTimeStr.substring(10, 12)}:${dateTimeStr.substring(12, 14)}');
   final dtStr = dt.toIso8601String();
   //print("正在处理:$fileName");
 
@@ -65,7 +64,6 @@ Future<Map<String, dynamic>> readAndProcessFile(
     final snr5 = _parseDouble(parts[13]);
     final rv5 = _parseDouble(parts[14]);
     final sw5 = _parseDouble(parts[15]);
-
 
     // 添加记录
     data['records'].add({
@@ -105,28 +103,32 @@ Future<void> insertDataToDatabase(
   INSERT INTO $tableName (Time, show_name, name, Platform_id, Height, SNR1, Rv1, SW1, SNR2, Rv2, SW2, SNR3, Rv3, SW3, SNR4, Rv4, SW4, SNR5, Rv5, SW5)
   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   ''';
-  for (final record in data['records']) {
-    await conn.query(insertSql, [
-      record['Time'],
-      data['showName'],
-      data['name'],
-      data['platformId'],
-      record['Height'],
-      record['SNR1'],
-      record['Rv1'],
-      record['SW1'],
-      record['SNR2'],
-      record['Rv2'],
-      record['SW2'],
-      record['SNR3'],
-      record['Rv3'],
-      record['SW3'],
-      record['SNR4'],
-      record['Rv4'],
-      record['SW4'],
-      record['SNR5'],
-      record['Rv5'],
-      record['SW5'],
-    ]);
-  }
+
+  // 使用事务包裹所有插入操作
+  await conn.transaction((transaction) async {
+    for (final record in data['records']) {
+      await transaction.query(insertSql, [
+        record['Time'],
+        data['showName'],
+        data['name'],
+        data['platformId'],
+        record['Height'],
+        record['SNR1'],
+        record['Rv1'],
+        record['SW1'],
+        record['SNR2'],
+        record['Rv2'],
+        record['SW2'],
+        record['SNR3'],
+        record['Rv3'],
+        record['SW3'],
+        record['SNR4'],
+        record['Rv4'],
+        record['SW4'],
+        record['SNR5'],
+        record['Rv5'],
+        record['SW5'],
+      ]);
+    }
+  });
 }
