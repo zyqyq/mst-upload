@@ -8,7 +8,6 @@ import 'upload_L1B.dart';
 import 'upload_L2.dart';
 import 'dart:isolate'; // 添加dart:isolate库以使用Isolate
 import 'package:mutex/mutex.dart';
-import 'dart:collection';
 import 'dart:async';
 
 // 新增: 定义全局变量来存储设置
@@ -109,9 +108,9 @@ Future<void> processFile(
         settings); // 修改: 传递 settings 参数
     logger.debug('上传 L2 文件: $newFilePath2');
     await uploadPara(newFilePath2, conn, showName, name, platformId,
-        settings['DeviceTableNme']);
+        settings['DeviceTableName']);
     logger.debug('上传参数文件: $newFilePath2');
-    //print('上传参数文件: $newFilePath2');
+    print('上传参数文件: ${settings['DeviceTableName']}');
   } else if (filePath.contains('L2')) {
     logger.debug('文件类型: L2');
     //print('文件类型: L2');
@@ -386,7 +385,8 @@ Future<void> processFiles(
   }
 
   final fileList = <String>[];
-  await _traverseDirectory(folderPath, conn, fileList, name, platformId,_globalSettings['DeviceTableName']);
+  await _traverseDirectory(folderPath, conn, fileList, name, platformId,
+      _globalSettings['DeviceTableName']);
   progressNotifier.value = 10;
 
   //final connectionPool = ConnectionPool(dbParams, maxSize: 5); // 初始化连接池
@@ -421,20 +421,26 @@ Future<void> processFiles(
 }
 
 // 递归遍历文件夹
-Future<void> _traverseDirectory(String dirPath, MySqlConnection conn,
-    List<String> fileList, String name, String platformId,String DeviceTableName) async {
+Future<void> _traverseDirectory(
+    String dirPath,
+    MySqlConnection conn,
+    List<String> fileList,
+    String name,
+    String platformId,
+    String DeviceTableName) async {
   try {
     logger.info('开始遍历目录: $dirPath');
     final dir = Directory(dirPath);
     final files = await dir.list().toList();
     for (final file in files) {
       if (file is Directory) {
-        await _traverseDirectory(file.path, conn, fileList, name, platformId,DeviceTableName);
+        await _traverseDirectory(
+            file.path, conn, fileList, name, platformId, DeviceTableName);
       } else if (file.path.endsWith('.txt') || file.path.endsWith('.TXT')) {
         final filePath = file.path;
         // 检查是否重复
-        final isDuplicate = await _isDuplicateRecord(conn, filePath, name,
-            platformId, DeviceTableName);
+        final isDuplicate = await _isDuplicateRecord(
+            conn, filePath, name, platformId, DeviceTableName);
         if (!isDuplicate) {
           fileList.add(filePath);
           logger.debug('添加文件到处理列表: $filePath');
