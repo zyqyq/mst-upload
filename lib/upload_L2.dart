@@ -27,6 +27,11 @@ Future<void> uploadL2(String newFilePath2, MySqlConnection conn, String showName
     throw Exception('Unsupported file type');
   }
 
+  // 解析文件名中的日期时间
+  final dateTimeStr = fileName.split('_')[5]; // 修改: 提取正确的日期时间部分
+  final dt = DateTime.parse('${dateTimeStr.substring(0, 4)}-${dateTimeStr.substring(4, 6)}-${dateTimeStr.substring(6, 8)}T${dateTimeStr.substring(8, 10)}:${dateTimeStr.substring(10, 12)}:${dateTimeStr.substring(12, 14)}');
+  final dtStr = dt.toIso8601String();
+
   // 读取文件
   final file = File(newFilePath2);
   final lines = await file.readAsLines();
@@ -41,6 +46,7 @@ Future<void> uploadL2(String newFilePath2, MySqlConnection conn, String showName
 
   // 使用事务包裹所有插入操作
   await conn.transaction((transaction) async {
+    final batch = <List<dynamic>>[];
     for (var line in dataLines) {
       final parts = line.trim().split(RegExp(r'\s+'));
 
@@ -51,14 +57,19 @@ Future<void> uploadL2(String newFilePath2, MySqlConnection conn, String showName
       final Cn2 = _parseDouble(parts[4]);
       final Credi = _parseDouble(parts[5]);
 
-      // 解析文件名中的日期时间
-      final fileName = path.basename(newFilePath2);
-      final dateTimeStr = fileName.split('_')[5]; // 修改: 提取正确的日期时间部分
-      final dt = DateTime.parse('${dateTimeStr.substring(0, 4)}-${dateTimeStr.substring(4, 6)}-${dateTimeStr.substring(6, 8)}T${dateTimeStr.substring(8, 10)}:${dateTimeStr.substring(10, 12)}:${dateTimeStr.substring(12, 14)}');
-      final dtStr = dt.toIso8601String();
+      // 添加记录到批次列表
+      batch.add([dtStr, showName, name, platformId, height, horiz_ws, horiz_wd, verti_v, Cn2, Credi]);
 
-      // 执行插入操作
-      await transaction.query(insertSql, [dtStr, showName, name, platformId, height, horiz_ws, horiz_wd, verti_v, Cn2, Credi]);
+      // 批量插入，每次最多插入 1000 条记录
+      if (batch.length >= 1000) {
+        await transaction.queryMulti(insertSql, batch);
+        batch.clear();
+      }
+    }
+
+    // 插入剩余的记录
+    if (batch.isNotEmpty) {
+      await transaction.queryMulti(insertSql, batch);
     }
   });
 }

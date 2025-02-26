@@ -37,10 +37,10 @@ Future<Map<String, dynamic>> readAndProcessFile(
 
   // 提取时间信息
   final fileName = path.basename(filePath);
-  final dateTimeStr = fileName.split('_')[5]; // 修改: 提取正确的日期时间部分
+  final dateTimeStr = fileName.split('_')[5]; 
   final dt = DateTime.parse(
       '${dateTimeStr.substring(0, 4)}-${dateTimeStr.substring(4, 6)}-${dateTimeStr.substring(6, 8)}T${dateTimeStr.substring(8, 10)}:${dateTimeStr.substring(10, 12)}:${dateTimeStr.substring(12, 14)}');
-  final dtStr = dt.toIso8601String();
+  data['Time'] = dt.toIso8601String();
   //print("正在处理:$fileName");
 
   // 跳过前34行
@@ -67,7 +67,6 @@ Future<Map<String, dynamic>> readAndProcessFile(
 
     // 添加记录
     data['records'].add({
-      'Time': dtStr,
       'Height': height,
       'SNR1': snr1,
       'Rv1': rv1,
@@ -109,7 +108,7 @@ Future<void> insertDataToDatabase(
     final batch = <List<dynamic>>[];
     for (final record in data['records']) {
       batch.add([
-        record['Time'],
+        data['Time'],
         data['showName'],
         data['name'],
         data['platformId'],

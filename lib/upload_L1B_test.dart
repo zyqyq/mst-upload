@@ -13,7 +13,7 @@ void main() async {
   );
 
   // 测试文件路径
-  final testFilePath = '/Users/zyqyq/Program/数据集/L1B/202408/20240801/OQZQB_MSTR01_PSPP_L1B_30M_20240801180000_V01.00_ST.TXT';
+  final testFilePath = '/Users/zyqyq/Program/数据集/L2/202408-L2/20240801/OQZQB_MSTR01_AWCN_L2_30M_20240801000000_V01.00_M.TXT';
 
   // 其他必要参数
   final showName = 'TestShow';
