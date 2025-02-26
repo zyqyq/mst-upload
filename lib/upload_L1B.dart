@@ -106,8 +106,9 @@ Future<void> insertDataToDatabase(
 
   // 使用事务包裹所有插入操作
   await conn.transaction((transaction) async {
+    final batch = <List<dynamic>>[];
     for (final record in data['records']) {
-      await transaction.query(insertSql, [
+      batch.add([
         record['Time'],
         data['showName'],
         data['name'],
@@ -129,6 +130,17 @@ Future<void> insertDataToDatabase(
         record['Rv5'],
         record['SW5'],
       ]);
+
+      // 批量插入，每次最多插入 1000 条记录
+      if (batch.length >= 1000) {
+        await transaction.queryMulti(insertSql, batch);
+        batch.clear();
+      }
+    }
+
+    // 插入剩余的记录
+    if (batch.isNotEmpty) {
+      await transaction.queryMulti(insertSql, batch);
     }
   });
 }

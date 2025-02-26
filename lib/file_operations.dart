@@ -386,7 +386,7 @@ Future<void> processFiles(
 
   final fileList = <String>[];
   await _traverseDirectory(folderPath, conn, fileList, name, platformId,
-      _globalSettings['DeviceTableName']);
+      _globalSettings['DeviceTableName'], progressNotifier);
   progressNotifier.value = 10;
 
   //final connectionPool = ConnectionPool(dbParams, maxSize: 5); // 初始化连接池
@@ -427,20 +427,28 @@ Future<void> _traverseDirectory(
     List<String> fileList,
     String name,
     String platformId,
-    String DeviceTableName) async {
+    String DeviceTableName,
+    ValueNotifier<int> duplicateCheckProgressNotifier) async {
   try {
     logger.info('开始遍历目录: $dirPath');
     final dir = Directory(dirPath);
     final files = await dir.list().toList();
+    int totalFiles = files.length;
+    int processedFiles = 0;
+
     for (final file in files) {
+      processedFiles++;
+      duplicateCheckProgressNotifier.value =
+          (processedFiles * 10 ~/ totalFiles);
+
       if (file is Directory) {
         await _traverseDirectory(
-            file.path, conn, fileList, name, platformId, DeviceTableName);
+            file.path, conn, fileList, name, platformId, DeviceTableName, duplicateCheckProgressNotifier);
       } else if (file.path.endsWith('.txt') || file.path.endsWith('.TXT')) {
         final filePath = file.path;
         // 检查是否重复
         final isDuplicate = await _isDuplicateRecord(
-            conn, filePath, name, platformId, DeviceTableName);
+            conn, filePath, name, platformId, DeviceTableName, duplicateCheckProgressNotifier);
         if (!isDuplicate) {
           fileList.add(filePath);
           logger.debug('添加文件到处理列表: $filePath');
@@ -455,7 +463,7 @@ Future<void> _traverseDirectory(
 
 // 检查是否重复记录
 Future<bool> _isDuplicateRecord(MySqlConnection conn, String filePath,
-    String name, String platformId, String DeviceTableName) async {
+    String name, String platformId, String DeviceTableName, ValueNotifier<int> duplicateCheckProgressNotifier) async {
   try {
     final fileName = path.basenameWithoutExtension(filePath);
     final parts = fileName.split('_');
