@@ -177,7 +177,7 @@ class SettingsPageState extends State<SettingsPage> {
     }
   }
 
-  void _validatePaths() async {
+  void _validatePaths([bool leaving = false]) async {
     final sourceDataPath = _sourceDataPathController.text;
     final conversionProgramPath = _conversionProgramPathController.text;
     final pythonInterpreterPath = _pythonInterpreterPathController.text;
@@ -240,9 +240,11 @@ class SettingsPageState extends State<SettingsPage> {
     }
 
     // 如果所有路径都有效
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('所有路径有效')),
-    );
+    if (!leaving) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('所有路径有效')),
+      );
+    }
     _saveSettings(); // 保存设置
   }
 
@@ -348,7 +350,7 @@ class SettingsPageState extends State<SettingsPage> {
                 TextButton(
                   child: Text('确认保存'),
                   onPressed: () {
-                    _validatePaths(); // 保存更改
+                    _validatePaths(true); // 保存更改
                     Navigator.of(context).pop(true); // 返回 true 表示保存更改
                   },
                 ),
