@@ -216,7 +216,7 @@ void _handleTaskCompletion(
 }) {
   processedFilesNotifier.value++;
   progressNotifier.value =
-      ((processedFilesNotifier.value * 90 ~/ totalFiles) + 10).round();
+      ((processedFilesNotifier.value * 99 ~/ totalFiles) + 1).round();
 
   if (ref < fileList.length) {
     workerPort.send(fileList[ref]);
@@ -336,13 +336,14 @@ Future<void> processFiles(
   }
 
   final folderPath = _globalSettings['sourceDataPath'];
-  final totalFiles = await _countTotalFiles(folderPath);
+  //final totalFiles = await _countTotalFiles(folderPath);
+  final totalFiles = 0;
   final startTime = DateTime.now();
 
   final fileList = <String>[];
   await _traverseDirectory(folderPath, conn, fileList, name, platformId,
-      _globalSettings['DeviceTableName'], progressNotifier,totalFiles);
-  progressNotifier.value = 10;
+      _globalSettings['DeviceTableName'], progressNotifier, totalFiles);
+  progressNotifier.value = 1;
 
   final processedFilesNotifier = ValueNotifier(0);
   await processFilesInParallel(
@@ -388,21 +389,19 @@ Future<void> _traverseDirectory(
     final files = await dir.list().toList();
 
     for (final file in files) {
-
       if (file is Directory) {
         await _traverseDirectory(file.path, conn, fileList, name, platformId,
-            DeviceTableName, duplicateCheckProgressNotifier,totalFiles);
+            DeviceTableName, duplicateCheckProgressNotifier, totalFiles);
       } else if (file.path.endsWith('.txt') || file.path.endsWith('.TXT')) {
         final filePath = file.path;
         // 检查是否重复
-        final isDuplicate = await _isDuplicateRecord(conn, filePath, name,
-            platformId, DeviceTableName);
+        final isDuplicate = await _isDuplicateRecord(
+            conn, filePath, name, platformId, DeviceTableName);
         if (!isDuplicate) {
           fileList.add(filePath);
           logger.debug('添加文件到处理列表: $filePath');
         }
-      duplicateCheckProgressNotifier.value =
-          (fileList.length * 10 ~/ totalFiles);
+        //duplicateCheckProgressNotifier.value =(fileList.length * 10 ~/ totalFiles);
       }
     }
     logger.debug('目录遍历完成: $dirPath');
@@ -412,12 +411,8 @@ Future<void> _traverseDirectory(
 }
 
 // 检查是否重复记录
-Future<bool> _isDuplicateRecord(
-    MySqlConnection conn,
-    String filePath,
-    String name,
-    String platformId,
-    String DeviceTableName) async {
+Future<bool> _isDuplicateRecord(MySqlConnection conn, String filePath,
+    String name, String platformId, String DeviceTableName) async {
   try {
     final fileName = path.basenameWithoutExtension(filePath);
     final parts = fileName.split('_');
@@ -474,7 +469,7 @@ Future<bool> _isDuplicateRecord(
 Future<int> _countTotalFiles(String dirPath) async {
   int count = 0;
   final dir = Directory(dirPath);
-  
+
   await for (final file in dir.list()) {
     if (file is Directory) {
       count += await _countTotalFiles(file.path);
@@ -484,6 +479,7 @@ Future<int> _countTotalFiles(String dirPath) async {
   }
   return count;
 }
+
 // 新增: Logger 类
 class Logger {
   List<String> _logCache = [];
