@@ -336,11 +336,12 @@ Future<void> processFiles(
   }
 
   final folderPath = _globalSettings['sourceDataPath'];
+  final totalFiles = await _countTotalFiles(folderPath);
   final startTime = DateTime.now();
 
   final fileList = <String>[];
   await _traverseDirectory(folderPath, conn, fileList, name, platformId,
-      _globalSettings['DeviceTableName'], progressNotifier);
+      _globalSettings['DeviceTableName'], progressNotifier,totalFiles);
   progressNotifier.value = 10;
 
   final processedFilesNotifier = ValueNotifier(0);
@@ -379,31 +380,29 @@ Future<void> _traverseDirectory(
     String name,
     String platformId,
     String DeviceTableName,
-    ValueNotifier<int> duplicateCheckProgressNotifier) async {
+    ValueNotifier<int> duplicateCheckProgressNotifier,
+    int totalFiles) async {
   try {
     logger.info('开始遍历目录: $dirPath');
     final dir = Directory(dirPath);
     final files = await dir.list().toList();
-    int totalFiles = files.length;
-    int processedFiles = 0;
 
     for (final file in files) {
-      processedFiles++;
-      duplicateCheckProgressNotifier.value =
-          (processedFiles * 10 ~/ totalFiles);
 
       if (file is Directory) {
         await _traverseDirectory(file.path, conn, fileList, name, platformId,
-            DeviceTableName, duplicateCheckProgressNotifier);
+            DeviceTableName, duplicateCheckProgressNotifier,totalFiles);
       } else if (file.path.endsWith('.txt') || file.path.endsWith('.TXT')) {
         final filePath = file.path;
         // 检查是否重复
         final isDuplicate = await _isDuplicateRecord(conn, filePath, name,
-            platformId, DeviceTableName, duplicateCheckProgressNotifier);
+            platformId, DeviceTableName);
         if (!isDuplicate) {
           fileList.add(filePath);
           logger.debug('添加文件到处理列表: $filePath');
         }
+      duplicateCheckProgressNotifier.value =
+          (fileList.length * 10 ~/ totalFiles);
       }
     }
     logger.debug('目录遍历完成: $dirPath');
@@ -418,8 +417,7 @@ Future<bool> _isDuplicateRecord(
     String filePath,
     String name,
     String platformId,
-    String DeviceTableName,
-    ValueNotifier<int> duplicateCheckProgressNotifier) async {
+    String DeviceTableName) async {
   try {
     final fileName = path.basenameWithoutExtension(filePath);
     final parts = fileName.split('_');
@@ -473,6 +471,19 @@ Future<bool> _isDuplicateRecord(
   }
 }
 
+Future<int> _countTotalFiles(String dirPath) async {
+  int count = 0;
+  final dir = Directory(dirPath);
+  
+  await for (final file in dir.list()) {
+    if (file is Directory) {
+      count += await _countTotalFiles(file.path);
+    } else if (file.path.endsWith('.txt') || file.path.endsWith('.TXT')) {
+      count++;
+    }
+  }
+  return count;
+}
 // 新增: Logger 类
 class Logger {
   List<String> _logCache = [];
