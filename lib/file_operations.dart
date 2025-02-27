@@ -118,7 +118,8 @@ Future<void> processFile(
         settings); // 修改: 传递 settings 参数
     logger.debug('上传 L2 文件: $fileName');
   }
-  logger.debug('文件处理完成: $fileName');
+  //logger.debug('文件处理完成: $fileName');
+  print('文件处理完成: $fileName');
   // } catch (e, stackTrace) {
   //   logger.error('文件处理失败: $filePath', stackTrace);
   // }
@@ -283,7 +284,7 @@ void _processFileIsolate(_IsolateParams params) async {
         'workerPort': taskPort.sendPort,
       });
       logger.debug('文件处理完成: $filePath');
-      print('文件处理完成: $filePath');
+      //print('文件处理完成: $filePath');
       logger.flushLogs(params.mainPort);
     } catch (e) {
       logger.error('文件处理失败: $filePath');
@@ -520,21 +521,21 @@ class Logger {
   }
 
   void writeLogsToFile() async {
-  final file = File('process_log.txt');
-  
-  // 创建副本并原子化清空（关键修复）
-  final logsToWrite = _logCache.toList(); 
-  _logCache.clear(); // 立即清空原列表
-  
-  // 使用同步写入避免异步间隙（优化点）
-  final sink = file.openWrite(mode: FileMode.append);
-  await _writeLock.acquire();
-  try {
-    for (final logEntry in logsToWrite) {
-      sink.write(logEntry); // 同步写入操作
+    final file = File('process_log.txt');
+
+    // 创建副本并原子化清空（关键修复）
+    final logsToWrite = _logCache.toList();
+    _logCache.clear(); // 立即清空原列表
+
+    // 使用同步写入避免异步间隙（优化点）
+    final sink = file.openWrite(mode: FileMode.append);
+    await _writeLock.acquire();
+    try {
+      for (final logEntry in logsToWrite) {
+        sink.write(logEntry); // 同步写入操作
+      }
+    } finally {
+      await sink.close(); // 异步关闭文件流
     }
-  } finally {
-    await sink.close(); // 异步关闭文件流
   }
-}
 }
