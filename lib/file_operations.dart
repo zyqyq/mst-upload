@@ -52,7 +52,7 @@ Future<void> processFile(
     Map<String, dynamic> settings,
     Logger logger) async {
   final fileName = path.basename(filePath);
-  print('开始处理文件: $fileName');
+  //print('开始处理文件: $fileName');
   // try {
   logger.debug('开始处理文件: $fileName');
   if (fileName.contains('L1B')) {
@@ -110,7 +110,7 @@ Future<void> processFile(
     await uploadPara(newFilePath2, conn, showName, name, platformId,
         settings['DeviceTableName']);
     logger.debug('上传参数文件: $newFilePath2');
-    print('上传参数文件: ${settings['DeviceTableName']}');
+    //print('上传参数文件: ${settings['DeviceTableName']}');
   } else if (filePath.contains('L2')) {
     logger.debug('文件类型: L2');
     //print('文件类型: L2');
@@ -124,145 +124,10 @@ Future<void> processFile(
   // }
 }
 
-// 连接池类改进
-class ConnectionPool {
-  final List<MySqlConnection> _pool = [];
-  final ConnectionSettings _settings;
-  final int _maxSize;
-  final Mutex _lock = Mutex();
-  final Stopwatch _validationTimer = Stopwatch()..start();
-
-  ConnectionPool(this._settings, {int maxSize = 3}) : _maxSize = maxSize;
-
-  Future<MySqlConnection> getConnection() async {
-    await _lock.acquire();
-    try {
-      // 定期全量验证(每5分钟)
-      if (_validationTimer.elapsed.inMinutes >= 5) {
-        await _validatePool();
-        _validationTimer.reset();
-      }
-
-      while (_pool.isNotEmpty) {
-        final conn = _pool.removeLast();
-        if (await _isConnectionValid(conn)) {
-          return conn;
-        }
-      }
-      return await MySqlConnection.connect(_settings);
-    } finally {
-      _lock.release();
-    }
-  }
-
-  Future<void> _validatePool() async {
-    await _lock.acquire();
-    try {
-      final validConnections = <MySqlConnection>[];
-      for (final conn in _pool) {
-        if (await _isConnectionValid(conn)) {
-          validConnections.add(conn);
-        } else {
-          await conn.close();
-        }
-      }
-      _pool
-        ..clear()
-        ..addAll(validConnections);
-      logger.debug('连接池验证完成，有效连接数: ${_pool.length}');
-    } finally {
-      _lock.release();
-    }
-  }
-
-  Future<bool> _isConnectionValid(MySqlConnection conn) async {
-    try {
-      await conn.query('SELECT 1, NOW()'); // 增强型心跳检测
-      return true;
-    } catch (_) {
-      await conn.close();
-      return false;
-    }
-  }
-
-  Future<void> releaseConnection(MySqlConnection conn) async {
-    await _lock.acquire();
-    try {
-      if (await _isConnectionValid(conn) && _pool.length < _maxSize) {
-        _pool.add(conn);
-      } else {
-        await conn.close();
-      }
-    } finally {
-      _lock.release();
-    }
-  }
-
-  // 新增closeAll方法
-  Future<void> closeAll() async {
-    await _lock.acquire();
-    try {
-      for (final conn in _pool) {
-        try {
-          await conn.close();
-        } catch (_) {}
-      }
-      _pool.clear();
-    } finally {
-      _lock.release();
-    }
-  }
-}
-
-// 新增: 定义 _processFileIsolate 函数
-void _processFileIsolate(Map<String, dynamic> params) async {
-  final filePath = params['filePath'];
-  final sendPort = params['sendPort'] as SendPort;
-  final mainPort = params['mainPort'] as SendPort;
-  final folderPath = params['folderPath'];
-  final showName = params['showName'];
-  final name = params['name'];
-  final platformId = params['platformId'];
-  final settings = params['settings'];
-  final connectionPool = params['connectionPool'] as ConnectionPool;
-  final logger = Logger(isDebug: settings["enableDebugLogging"]);
-  //print(settings["enableDebugLogging"]);
-  final conn = await connectionPool.getConnection();
-  try {
-    await conn.query('USE `${settings['databaseName']}`');
-    logger.debug('数据库连接成功');
-  } catch (e, stackTrace) {
-    logger.error('无法连接到数据库: $e', stackTrace);
-    sendPort.send(false);
-    return;
-  }
-
-  try {
-    final conn = await connectionPool.getConnection();
-    await processFile(filePath, folderPath, conn, showName, name, platformId,
-        settings, logger);
-    logger.debug('文件处理完成: $filePath');
-    sendPort.send(true);
-  } catch (e, stackTrace) {
-    logger.error('文件处理失败: $filePath', stackTrace);
-    sendPort.send(false);
-  } finally {
-    try {
-      if (conn != null) {
-        await connectionPool.releaseConnection(conn);
-      }
-    } catch (_) {}
-    logger.debug('数据库连接关闭');
-    // 发送日志信息到主线程
-    logger.flushLogs(mainPort);
-    //sendPort.close();
-  }
-}
-
 Future<void> processFilesInParallel(
   List<String> fileList,
   String folderPath,
-  ConnectionPool connectionPool,
+  MySqlConnection connection,
   String showName,
   String name,
   String platformId,
@@ -272,69 +137,159 @@ Future<void> processFilesInParallel(
 ) async {
   final int maxIsolates = Platform.numberOfProcessors ~/ 2;
   final List<Isolate> isolates = [];
-  final List<ReceivePort> receivePorts = [];
+  final List<SendPort> workerPorts = [];
   int totalFiles = fileList.length;
-  int activeIsolates = 0;
+  int currentFileIndex = 0;
 
-  logger.info('开始多线程处理文件，最大线程数 $maxIsolates');
+  final ReceivePort mainReceivePort = ReceivePort();
+  final ReceivePort exitPort = ReceivePort();
 
-  // 主线程设置接收端口
-  final mainReceivePort = ReceivePort();
-  mainReceivePort.listen((data) async {
-    logger.syncState(data);
-    logger.writeLogsToFile();
+  // 主端口监听逻辑
+  mainReceivePort.listen((message) {
+    if (message is Map<String, dynamic>) {
+      if (message['type'] == 'log') {
+        logger.syncState(message['data']);
+        logger.writeLogsToFile();
+      } else if (message['type'] == 'taskCompleted') {
+        _handleTaskCompletion(
+          message['workerPort'],
+          fileList,
+          workerPorts,
+          exitPort.sendPort,
+          processedFilesNotifier,
+          progressNotifier,
+          totalFiles,
+          ref: currentFileIndex,
+        );
+        currentFileIndex++;
+      }
+    }
   });
 
-  for (final filePath in fileList) {
-    if (activeIsolates >= maxIsolates) {
-      await receivePorts[0].first;
-      processedFilesNotifier.value++;
-      progressNotifier.value =
-          ((processedFilesNotifier.value * 90 ~/ totalFiles) + 10).round();
-      isolates.removeAt(0).kill(priority: Isolate.immediate);
-      receivePorts.removeAt(0);
-      activeIsolates--;
-    }
-
-    final receivePort = ReceivePort();
-    receivePorts.add(receivePort);
-
+  // 创建隔离线程
+  for (int i = 0; i < maxIsolates; i++) {
+    final initPort = ReceivePort();
     isolates.add(await Isolate.spawn(
       _processFileIsolate,
-      {
-        'filePath': filePath,
-        'sendPort': receivePort.sendPort,
-        'mainPort': mainReceivePort.sendPort,
-        'folderPath': folderPath,
-        'showName': showName,
-        'name': name,
-        'platformId': platformId,
-        'settings': settings,
-        'connectionPool': connectionPool,
-      },
+      _IsolateParams(
+        initPort.sendPort,
+        mainReceivePort.sendPort,
+        folderPath,
+        showName,
+        name,
+        platformId,
+        settings,
+      ),
     ));
-    logger.debug('启动 Isolate: ${path.basename(filePath)}');
 
-    activeIsolates++;
+    // 获取工作线程通信端口
+    final SendPort workerPort = await initPort.first;
+    workerPorts.add(workerPort);
+
+    // 分配初始任务
+    if (currentFileIndex < totalFiles) {
+      workerPort.send(fileList[currentFileIndex++]);
+    }
   }
 
-  // 等待所有 ReceivePort 收到消息
-  for (final receivePort in receivePorts) {
-    await receivePort.first;
-  }
+  // 等待所有任务完成
+  await exitPort.first;
 
-  // 处理全局退出信号
-  ProcessSignal.sigint.watch().listen((_) async {
-    mainReceivePort.close();
-    exit(0);
-  });
-
+  // 清理资源
   for (final isolate in isolates) {
     isolate.kill(priority: Isolate.immediate);
   }
-  logger.info('多线程处理文件完成');
-
   mainReceivePort.close();
+  exitPort.close();
+}
+
+void _handleTaskCompletion(
+  SendPort workerPort,
+  List<String> fileList,
+  List<SendPort> workerPorts,
+  SendPort exitPort,
+  ValueNotifier<int> processedFilesNotifier,
+  ValueNotifier<int> progressNotifier,
+  int totalFiles, {
+  required int ref,
+}) {
+  processedFilesNotifier.value++;
+  progressNotifier.value =
+      ((processedFilesNotifier.value * 90 ~/ totalFiles) + 10).round();
+
+  if (ref < fileList.length) {
+    workerPort.send(fileList[ref]);
+  } else if (processedFilesNotifier.value == totalFiles) {
+    exitPort.send(true);
+  }
+}
+
+class _IsolateParams {
+  final SendPort initPort;
+  final SendPort mainPort;
+  final String folderPath;
+  final String showName;
+  final String name;
+  final String platformId;
+  final Map<String, dynamic> settings;
+
+  _IsolateParams(
+    this.initPort,
+    this.mainPort,
+    this.folderPath,
+    this.showName,
+    this.name,
+    this.platformId,
+    this.settings,
+  );
+}
+
+void _processFileIsolate(_IsolateParams params) async {
+  final ReceivePort taskPort = ReceivePort();
+  params.initPort.send(taskPort.sendPort);
+
+  MySqlConnection? conn;
+  final logger = Logger(isDebug: params.settings["enableDebugLogging"]);
+
+  try {
+    conn = await MySqlConnection.connect(ConnectionSettings(
+      host: params.settings['databaseAddress'],
+      port: int.parse(params.settings['databasePort']),
+      user: params.settings['databaseUsername'],
+      password: params.settings['databasePassword'],
+      db: params.settings['databaseName'],
+    ));
+  } catch (e) {
+    logger.error('数据库连接失败: $e');
+    logger.flushLogs(params.mainPort);
+    return;
+  }
+
+  taskPort.listen((filePath) async {
+    try {
+      await processFile(
+        filePath,
+        params.folderPath,
+        conn!,
+        params.showName,
+        params.name,
+        params.platformId,
+        params.settings,
+        logger,
+      );
+
+      params.mainPort.send({
+        'type': 'taskCompleted',
+        'workerPort': taskPort.sendPort,
+      });
+      logger.debug('文件处理完成: $filePath');
+      print('文件处理完成: $filePath');
+      logger.flushLogs(params.mainPort);
+    } catch (e) {
+      logger.error('文件处理失败: $filePath');
+      logger.flushLogs(params.mainPort);
+    }
+  });
 }
 
 // 遍历文件夹并处理数据
@@ -353,11 +308,6 @@ Future<void> processFiles(
     password: _globalSettings['databasePassword'],
     db: _globalSettings['databaseName'],
   );
-  final connectionPool =
-      ConnectionPool(dbParams, maxSize: Platform.numberOfProcessors * 2);
-
-  final folderPath = _globalSettings['sourceDataPath'];
-  final startTime = DateTime.now();
 
   MySqlConnection? conn;
   try {
@@ -384,17 +334,19 @@ Future<void> processFiles(
     return;
   }
 
+  final folderPath = _globalSettings['sourceDataPath'];
+  final startTime = DateTime.now();
+
   final fileList = <String>[];
   await _traverseDirectory(folderPath, conn, fileList, name, platformId,
       _globalSettings['DeviceTableName'], progressNotifier);
   progressNotifier.value = 10;
 
-  //final connectionPool = ConnectionPool(dbParams, maxSize: 5); // 初始化连接池
   final processedFilesNotifier = ValueNotifier(0);
   await processFilesInParallel(
       fileList,
       folderPath,
-      connectionPool,
+      conn!, // 修改: 传递 MySqlConnection 对象
       showName,
       name,
       platformId,
@@ -416,8 +368,6 @@ Future<void> processFiles(
 
   progressNotifier.value = 0;
   logger.writeLogsToFile();
-
-  await connectionPool.closeAll(); // 清理连接池
 }
 
 // 递归遍历文件夹
@@ -442,13 +392,13 @@ Future<void> _traverseDirectory(
           (processedFiles * 10 ~/ totalFiles);
 
       if (file is Directory) {
-        await _traverseDirectory(
-            file.path, conn, fileList, name, platformId, DeviceTableName, duplicateCheckProgressNotifier);
+        await _traverseDirectory(file.path, conn, fileList, name, platformId,
+            DeviceTableName, duplicateCheckProgressNotifier);
       } else if (file.path.endsWith('.txt') || file.path.endsWith('.TXT')) {
         final filePath = file.path;
         // 检查是否重复
-        final isDuplicate = await _isDuplicateRecord(
-            conn, filePath, name, platformId, DeviceTableName, duplicateCheckProgressNotifier);
+        final isDuplicate = await _isDuplicateRecord(conn, filePath, name,
+            platformId, DeviceTableName, duplicateCheckProgressNotifier);
         if (!isDuplicate) {
           fileList.add(filePath);
           logger.debug('添加文件到处理列表: $filePath');
@@ -462,8 +412,13 @@ Future<void> _traverseDirectory(
 }
 
 // 检查是否重复记录
-Future<bool> _isDuplicateRecord(MySqlConnection conn, String filePath,
-    String name, String platformId, String DeviceTableName, ValueNotifier<int> duplicateCheckProgressNotifier) async {
+Future<bool> _isDuplicateRecord(
+    MySqlConnection conn,
+    String filePath,
+    String name,
+    String platformId,
+    String DeviceTableName,
+    ValueNotifier<int> duplicateCheckProgressNotifier) async {
   try {
     final fileName = path.basenameWithoutExtension(filePath);
     final parts = fileName.split('_');
@@ -521,6 +476,7 @@ Future<bool> _isDuplicateRecord(MySqlConnection conn, String filePath,
 class Logger {
   List<String> _logCache = [];
   bool _isDebug = true; // 默认为 true
+  final _writeLock = Mutex();
 
   // 修改构造函数参数名
   Logger({bool? isDebug}) {
@@ -554,7 +510,7 @@ class Logger {
   // 新增: 将日志信息发送到主线程
   void flushLogs(SendPort sendPort) {
     if (_logCache.isNotEmpty) {
-      sendPort.send(_logCache);
+      sendPort.send({'type': 'log', 'data': _logCache});
       _logCache.clear();
     }
   }
@@ -564,10 +520,21 @@ class Logger {
   }
 
   void writeLogsToFile() async {
-    final file = File('process_log.txt');
-    for (final logEntry in _logCache) {
-      await file.writeAsString(logEntry, mode: FileMode.append);
+  final file = File('process_log.txt');
+  
+  // 创建副本并原子化清空（关键修复）
+  final logsToWrite = _logCache.toList(); 
+  _logCache.clear(); // 立即清空原列表
+  
+  // 使用同步写入避免异步间隙（优化点）
+  final sink = file.openWrite(mode: FileMode.append);
+  await _writeLock.acquire();
+  try {
+    for (final logEntry in logsToWrite) {
+      sink.write(logEntry); // 同步写入操作
     }
-    _logCache.clear();
+  } finally {
+    await sink.close(); // 异步关闭文件流
   }
+}
 }

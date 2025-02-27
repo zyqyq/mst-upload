@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:mysql1/mysql1.dart';
-import 'upload_L1B.dart';
+//import 'python/upload_L1B.dart';
 
 void main() async {
   // 数据库连接配置

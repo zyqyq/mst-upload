@@ -1,5 +1,5 @@
 {
-  "sourceDataPath": "/Users/zyqyq/Program/数据集/L1B/202408/20240802",
+  "sourceDataPath": "/Users/zyqyq/Program/数据集/L1B/202408/20240801/test",
   "conversionProgramPath": "lib/change_for_flutter.py",
   "syncFrequency": "65",
   "databaseAddress": "127.0.0.1",
@@ -12,7 +12,7 @@
   "name": "qzgczMST",
   "pythonInterpreterPath": "/Library/Developer/CommandLineTools/usr/bin/python3",
   "optimizationProgramPath": "lib/libfix_for_flutter.py",
-  "enableDebugLogging": false,
+  "enableDebugLogging": true,
   "L2STTableName": "smos_radar_qzgcz_L2ST",
   "L2STProcessedTableName": "smos_radar_qzgcz_L2STProcessed",
   "L2MTableName": "smos_radar_qzgcz_L2M",
