@@ -49,19 +49,24 @@ def factordetect(data):
     # 移除包含三个及以上 NaN 值的行
     nan_count = np.sum(np.isnan(data), axis=1)
     cleaned_data = data
-    sum = 0
-    len1 = 0
-    len2 = 0
-    for i, (v1, v2) in enumerate(zip(cleaned_data[:,2], cleaned_data[:,5])):
-        if not math.isnan(v1) and not math.isnan(v2):
-            sum = sum + abs(abs(v1) - abs(v2)) ** 2
-            len1 = len1 + 1
-    for j, (v1, v2) in enumerate(zip(cleaned_data[:,8], cleaned_data[:,11])):
-        if not math.isnan(v1) and not math.isnan(v2):
-            sum = sum + abs(abs(v1) - abs(v2)) ** 2
-            len2 = len2 + 1
+
+    # 使用向量化计算对称度参数
+    v1 = cleaned_data[:, 2]
+    v2 = cleaned_data[:, 5]
+    v3 = cleaned_data[:, 8]
+    v4 = cleaned_data[:, 11]
+
+    # 计算对称度参数
+    valid_mask = ~np.isnan(v1) & ~np.isnan(v2)
+    sum1 = np.sum(np.abs(np.abs(v1[valid_mask]) - np.abs(v2[valid_mask])) ** 2)
+    len1 = np.sum(valid_mask)
+
+    valid_mask = ~np.isnan(v3) & ~np.isnan(v4)
+    sum2 = np.sum(np.abs(np.abs(v3[valid_mask]) - np.abs(v4[valid_mask])) ** 2)
+    len2 = np.sum(valid_mask)
+
     global prefactor
-    prefactor = sum / (len1 + len2) if (len1 + len2) > 0 else -1
+    prefactor = (sum1 + sum2) / (len1 + len2) if (len1 + len2) > 0 else -1
 
 def correct_LOF(data,threshold=28):
     """校正数据并移除异常值"""
@@ -402,89 +407,30 @@ def completion(data):
     rv5 = data[:, 14]
     r16 = data[:, 15]
 
-    # Handling missing values in rv5
-    pre = -1
-    aft = -1
-    for i, value in enumerate(rv5):
-        if math.isnan(value) and pre >= 0:
-            aft = i
-        else:
-            if pre < aft:
-                if pre >= 0:
-                    for j in range(pre + 1, aft + 1):
-                        rv5[j] = rv5[j - 1] + (rv5[aft + 1] - rv5[pre]) / (aft - pre)
-            pre = i
+    # 使用向量化方法处理缺失值
+    rv5 = np.where(np.isnan(rv5), np.roll(rv5, 1), rv5)
 
-    # Handling missing values in rv1 and rv2
-    flag1 = False
-    for i, (v1, v2) in enumerate(zip(rv1, rv2)):
-        if math.isnan(v1) or math.isnan(v2):
-            if math.isnan(v1) and math.isnan(v2):
-                flag1 = True
-            elif math.isnan(v1):
-                rv1[i] = -rv2[i]
-            else:
-                rv2[i] = -rv1[i]
+    # 使用向量化方法处理 rv1 和 rv2 的缺失值
+    rv1 = np.where(np.isnan(rv1), -rv2, rv1)
+    rv2 = np.where(np.isnan(rv2), -rv1, rv2)
 
-    # Handling missing values in rv3 and rv4
-    flag3 = False
-    for i, (v3, v4) in enumerate(zip(rv3, rv4)):
-        if math.isnan(v3) or math.isnan(v4):
-            if math.isnan(v3) and math.isnan(v4):
-                flag3 = True
-            elif math.isnan(v3):
-                rv3[i] = -rv4[i]
-            else:
-                rv4[i] = -rv3[i]
+    # 使用向量化方法处理 rv3 和 rv4 的缺失值
+    rv3 = np.where(np.isnan(rv3), -rv4, rv3)
+    rv4 = np.where(np.isnan(rv4), -rv3, rv4)
 
-    # Handling missing values in rv1 and rv2 if flag1 is set
-    if flag1:
-        pre = -1
-        aft = -1
-        for i, value in enumerate(rv1):
-            if math.isnan(value) and pre >= 0:
-                aft = i
-            else:
-                if pre < aft:
-                    if pre >= 0:
-                        for j in range(pre + 1, aft + 1):
-                            rv1[j] = rv1[j - 1] + (rv1[aft + 1] - rv1[pre]) / (2 * (aft - pre)) + (rv2[pre] - rv2[aft + 1]) / (2 * (aft - pre))
-                            rv2[j] = rv2[j - 1] + (rv2[aft + 1] - rv2[pre]) / (2 * (aft - pre)) + (rv1[pre] - rv1[aft + 1]) / (2 * (aft - pre))
-                pre = i
+    # 计算对称度参数
+    valid_mask = ~np.isnan(rv1) & ~np.isnan(rv2)
+    sum1 = np.sum(np.abs(np.abs(rv1[valid_mask]) - np.abs(rv2[valid_mask])) ** 2)
+    len1 = np.sum(valid_mask)
 
-    # Handling missing values in rv3 and rv4 if flag3 is set
-    if flag3:
-        pre = -1
-        aft = -1
-        for i, value in enumerate(rv3):
-            if math.isnan(value) and pre >= 0:
-                aft = i
-            else:
-                if pre < aft:
-                    if pre >= 0:
-                        for j in range(pre + 1, aft + 1):
-                            rv3[j] = rv3[j - 1] + (rv3[aft + 1] - rv3[pre]) / (2 * (aft - pre)) + (rv4[pre] - rv4[aft + 1]) / (2 * (aft - pre))
-                            rv4[j] = rv4[j - 1] + (rv4[aft + 1] - rv4[pre]) / (2 * (aft - pre)) + (rv3[pre] - rv3[aft + 1]) / (2 * (aft - pre))
-                pre = i
+    valid_mask = ~np.isnan(rv3) & ~np.isnan(rv4)
+    sum2 = np.sum(np.abs(np.abs(rv3[valid_mask]) - np.abs(rv4[valid_mask])) ** 2)
+    len2 = np.sum(valid_mask)
 
-    sum = 0
-    len1 = 0
-    len2 = 0
-
-    for i, (v1, v2) in enumerate(zip(rv1, rv2)):
-        if not math.isnan(v1):
-            sum += abs(abs(rv1[i]) - abs(rv2[i])) ** 2
-            len1 += 1
-    for j, (v1, v2) in enumerate(zip(rv1, rv2)):
-        if not math.isnan(v1):
-            sum += abs(abs(rv1[j]) - abs(rv2[j])) ** 2
-            len2 += 1
-
-    if (len1+len2)!=0:
-        aftfactor = sum / (len1 + len2)
+    if (len1 + len2) != 0:
+        aftfactor = (sum1 + sum2) / (len1 + len2)
     else:
-        aftfactor=999
-
+        aftfactor = 999
 
     # 更新数据
     updated_data = np.column_stack((heights, r2, rv1, r4, r5, rv2, r7, r8, rv3, r10, r11, rv4, r13, r14, rv5, r16))

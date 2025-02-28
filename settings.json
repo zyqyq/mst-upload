@@ -1,5 +1,5 @@
 {
-  "sourceDataPath": "/Users/zyqyq/Program/数据集/test",
+  "sourceDataPath": "/Users/zyqyq/Program/数据集/L1B/202408/20240801/test",
   "conversionProgramPath": "lib/change_for_flutter.py",
   "syncFrequency": "-1",
   "databaseAddress": "127.0.0.1",
