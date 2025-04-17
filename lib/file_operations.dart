@@ -458,8 +458,8 @@ Future<bool> _isDuplicateRecord(MySqlConnection conn, String filePath,
     final exists = checkResult.first[0] == 1; // 确保返回值是布尔类型
     //print('$fileName 是否重复:$exists');
     logger.debug('$fileName 是否重复:$exists');
-    //return exists; // 显式转换为 bool
-    return false;
+    return exists; // 显式转换为 bool
+    //return false;
   } catch (e, stackTrace) {
     logger.error('查重失败: $e', stackTrace);
     return true;
