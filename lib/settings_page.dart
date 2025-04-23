@@ -189,25 +189,116 @@ class SettingsPageState extends State<SettingsPage> {
       return;
     }
 
-    if (pythonInterpreterPath.isNotEmpty) {
-      try {
-        final shell = Shell();
-        final result = await shell.run('$pythonInterpreterPath --version');
-        if (result.isEmpty) {
-          _showErrorDialog('Python解释器地址不是一个有效的 Python 解释器');
-          return;
-        }
-        // 假设第一个结果是有效的
-        final results = result.first;
-        if (results.exitCode != 0) {
-          _showErrorDialog('Python解释器地址不是一个有效的 Python 解释器');
-          return;
-        }
-      } catch (e) {
-        _showErrorDialog('Python解释器地址不是一个有效的 Python 解释器');
-        return;
+if (pythonInterpreterPath.isNotEmpty) {
+  try {
+    final shell = Shell();
+
+    // 检查 Python 解释器是否有效
+    final versionResult = await shell.run('$pythonInterpreterPath --version');
+    if (versionResult.isEmpty || versionResult.first.exitCode != 0) {
+      _showErrorDialog('Python解释器地址不是一个有效的 Python 解释器');
+      return;
+    }
+
+    // 检查 requirements.txt 文件是否存在
+    final requirementsFile = File('requirements.txt');
+    if (!await requirementsFile.exists()) {
+      _showErrorDialog('未找到 requirements.txt 文件');
+      return;
+    }
+    final requirementsContent = await requirementsFile.readAsString();
+    final requiredPackages = requirementsContent
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty && !line.startsWith('#'))
+        .toList();
+
+    bool missingPackages = false;
+    List<String> missingPackageList = [];
+
+    // 检查每个依赖是否已安装
+    final pipListResult = await shell.run(
+      '$pythonInterpreterPath -m pip list --format=freeze'
+    );
+    // 提取所有 stdout 内容并合并为一个字符串
+    final installedPackages = pipListResult
+        .map((result) => result.stdout.toString()) // 提取每个 ProcessResult 的 stdout
+        .join('\n') // 合并为一个字符串
+        .split('\n'); // 按行分割
+
+    for (final package in requiredPackages) {
+      if (!installedPackages.any((line) => line.startsWith(package))) {
+        missingPackageList.add(package);
+        missingPackages = true;
       }
     }
+    // 如果有缺失的依赖
+    if (missingPackages) {
+      final userConfirmed = await showDialog<bool>(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: Text('缺少依赖'),
+            content: Text('以下依赖未安装：${missingPackageList.join(", ")}。\n是否要安装这些依赖？'),
+            actions: <Widget>[
+              TextButton(
+                child: Text('取消'),
+                onPressed: () {
+                  Navigator.of(context).pop(false); // 用户取消
+                },
+              ),
+              TextButton(
+                child: Text('确认'),
+                onPressed: () {
+                  Navigator.of(context).pop(true); // 用户确认
+                },
+              ),
+            ],
+          );
+        },
+      );
+
+      // 如果用户确认安装
+      if (userConfirmed == true) {
+        for (final package in missingPackageList) {
+          try {
+            // 根据操作系统选择终端命令
+            final String terminalCommand;
+            final List<String> terminalArgs;
+
+            if (Platform.isWindows) {
+              terminalCommand = 'cmd.exe';
+              terminalArgs = ['/c', '$pythonInterpreterPath -m pip install $package'];
+            } else if (Platform.isMacOS) {
+              terminalCommand = 'open';
+              terminalArgs = ['-a', 'Terminal', '--args', '$pythonInterpreterPath -m pip install $package'];
+            } else {
+              terminalCommand = 'x-terminal-emulator';
+              terminalArgs = ['-e', '$pythonInterpreterPath -m pip install $package'];
+            }
+
+            // 显示系统终端窗口并安装依赖
+            final installResult = await Process.run(
+              terminalCommand,
+              terminalArgs,
+              runInShell: true,
+            );
+            if (installResult.exitCode != 0) {
+              throw Exception('安装失败: ${installResult.stderr}');
+            }
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('已成功安装 $package')),
+            );
+          } catch (e) {
+            _showErrorDialog('安装 $package 失败，请手动安装。错误信息：$e');
+          }
+        }
+      }
+    }
+  } catch (e) {
+    _showErrorDialog('检查 Python 解释器或安装依赖时发生错误：$e');
+  }
+}
 
     if (conversionProgramPath.isNotEmpty &&
         !File(conversionProgramPath).existsSync()) {
