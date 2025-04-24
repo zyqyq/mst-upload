@@ -98,6 +98,8 @@ def correct_LOF(data,threshold=28):
         processed_data.append(new_row)
     # 将列表转换为 NumPy 数组
     processed_data = np.array(processed_data)
+    if processed_data.size == 0:
+        processed_data = np.empty((0, data.shape[1]))
     return processed_data
 
 def correct_DBS(data,eps=0.9,min=5):
@@ -143,6 +145,9 @@ def correct_DBS(data,eps=0.9,min=5):
 
     # 将列表转换为 NumPy 数组
     processed_data = np.array(processed_data)
+    if processed_data.size == 0:
+        # 确保返回二维空数组，列数与输入一致
+        processed_data = np.empty((0, data.shape[1]))
 
     return processed_data
 
@@ -297,6 +302,8 @@ def correct_based_on_change_rate(data, threshold=2.4):
 
     # 将列表转换为 NumPy 数组
     processed_data = np.array(processed_data)
+    if processed_data.size == 0:
+        processed_data = np.empty((0, data.shape[1]))
 
     return processed_data, removed_values
 
@@ -357,7 +364,8 @@ def correct_based_on_second_derivative(data, threshold=2.3):
 
     # 将列表转换为 NumPy 数组
     processed_data = np.array(processed_data)
-
+    if processed_data.size == 0:
+        processed_data = np.empty((0, data.shape[1]))
     return processed_data
 
 def write_data(data, new_filename, comments):
@@ -504,8 +512,6 @@ if __name__ == "__main__":
     count10 = 0; count0 = 0; count = 0; count1 = 0
     prefactor = 0; aftfactor = 0
 
-
-
     # 读取数据
     original_data, comments = read_data(args.source_file)
     count10 = len(original_data[:, 2])
@@ -522,6 +528,12 @@ if __name__ == "__main__":
     # 校正和处理数据
     processed_low_height_data = correct_low(low_height_data)
     processed_high_height_data = correct_high(high_height_data)
+    
+    # 在合并前确保两者均为2D
+    if processed_low_height_data.ndim == 1:
+        processed_low_height_data = processed_low_height_data.reshape(-1, 1)
+    if processed_high_height_data.ndim == 1:
+        processed_high_height_data = processed_high_height_data.reshape(-1, 1)
 
     # 合并处理后的数据
     if processed_high_height_data.size > 0:
