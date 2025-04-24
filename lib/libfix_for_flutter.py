@@ -2,13 +2,8 @@ import numpy as np
 from sklearn.neighbors import LocalOutlierFactor
 from sklearn.cluster import DBSCAN
 import math
-import sys
 import pandas as pd
-import re
-import os
-from datetime import datetime
 import argparse
-import time
 
 count10=0#原始数据RecordNumber
 count0=0#去除3NaN后的数RecordNumProcessed
@@ -31,7 +26,7 @@ def read_data(filename):
             file,
             sep=r'\s+',
             header=None,          # 不将第一行作为列名
-            na_values=['-9999999', '-999999', '-99999'],
+            na_values='-9999999',
             dtype=np.float64
         )
     
@@ -467,9 +462,7 @@ def completion(data):
     
     flag3 = np.any(rv3_nan & rv4_nan)
     
-    # 4. 处理rv1和rv2同时缺失的情况（向量化插值）
-    if flag1:
-        def symmetric_interpolate(arr1, arr2):
+    def symmetric_interpolate(arr1, arr2):
             nan_mask = np.isnan(arr1)
             if not np.any(nan_mask):
                 return arr1, arr2
@@ -501,7 +494,9 @@ def completion(data):
                     arr2[i] = (interp2[i] + (arr1[i-1] - arr1[i+1])/2)
             
             return arr1, arr2
-        
+    
+    # 4. 处理rv1和rv2同时缺失的情况（向量化插值）
+    if flag1:
         rv1, rv2 = symmetric_interpolate(rv1, rv2)
     
     # 5. 处理rv3和rv4同时缺失的情况（同上）
@@ -529,27 +524,26 @@ def completion(data):
     
     return updated_data, aftfactor
 
-if __name__ == "__main__":
-    start_total = time.time()  # 新增：记录总耗时起点
-
-    # 创建 ArgumentParser 对象
-    parser = argparse.ArgumentParser(description="Process L1B data files.")
-    parser.add_argument("source_file", type=str, help="Path to the source file")
-    parser.add_argument("output_file", type=str, help="Path to the output file")
-
-    # 解析命令行参数
-    args = parser.parse_args()
-
+def process_data(source_file, output_file):
+    """
+    处理数据的核心逻辑，封装为主函数可调用的函数。
+    
+    参数:
+    - source_file: 输入文件路径
+    - output_file: 输出文件路径
+    
+    返回:
+    - count10, count0, count, count1, prefactor, aftfactor: 量化指标
+    """
     # 量化指标相关的初始化
+    global count10, count0, count, count1, prefactor, aftfactor
     count10 = 0; count0 = 0; count = 0; count1 = 0
     prefactor = 0; aftfactor = 0
 
     # 读取数据
-    start_read = time.time()  # 新增：记录读取数据耗时起点
-    original_data, comments = read_data(args.source_file)
+    original_data, comments = read_data(source_file)
     count10 = len(original_data[:, 2])
     factordetect(original_data)
-    print(f"读取数据耗时: {time.time() - start_read:.4f} 秒")  # 新增：打印读取数据耗时
 
     # 校正和处理数据
     heights = original_data[:, 0]
@@ -560,13 +554,8 @@ if __name__ == "__main__":
     high_height_data = original_data[high_height_mask]
 
     # 校正和处理数据
-    start_low = time.time()  # 新增：记录校正低高度数据耗时起点
     processed_low_height_data = correct_low(low_height_data)
-    print(f"校正低高度数据耗时: {time.time() - start_low:.4f} 秒")  # 新增：打印校正低高度数据耗时
-
-    start_high = time.time()  # 新增：记录校正高高度数据耗时起点
     processed_high_height_data = correct_high(high_height_data)
-    print(f"校正高高度数据耗时: {time.time() - start_high:.4f} 秒")  # 新增：打印校正高高度数据耗时
     
     # 在合并前确保两者均为2D
     if processed_low_height_data.ndim == 1:
@@ -575,24 +564,31 @@ if __name__ == "__main__":
         processed_high_height_data = processed_high_height_data.reshape(-1, 1)
 
     # 合并处理后的数据
-    start_merge = time.time()  # 新增：记录合并数据耗时起点
     if processed_high_height_data.size > 0:
         processed_data = np.concatenate((processed_low_height_data, processed_high_height_data), axis=0)
     else:
         processed_data = processed_low_height_data.copy()
-    count0 = len(processed_data);
-    print(f"合并数据耗时: {time.time() - start_merge:.4f} 秒")  # 新增：打印合并数据耗时
+    count0 = len(processed_data)
 
     if processed_data.size == 0:
         updated_data, aftfactor = [], -1
     else:
-        start_completion = time.time()  # 新增：记录完成数据处理耗时起点
         updated_data, aftfactor = completion(processed_data)
-        print(f"完成数据处理耗时: {time.time() - start_completion:.4f} 秒")  # 新增：打印完成数据处理耗时
 
     # 将处理后的数据写入新文件
-    start_write = time.time()  # 新增：记录写入数据耗时起点
-    write_data(updated_data, args.output_file, comments)
-    print(f"写入数据耗时: {time.time() - start_write:.4f} 秒")  # 新增：打印写入数据耗时
+    write_data(updated_data, output_file, comments)
+    
+    return count10, count0, count, count1, prefactor, aftfactor
 
-    print(f"总耗时: {time.time() - start_total:.4f} 秒")  # 新增：打印总耗时
+
+if __name__ == "__main__":
+    # 创建 ArgumentParser 对象
+    parser = argparse.ArgumentParser(description="Process L1B data files.")
+    parser.add_argument("source_file", type=str, help="Path to the source file")
+    parser.add_argument("output_file", type=str, help="Path to the output file")
+
+    # 解析命令行参数
+    args = parser.parse_args()
+
+    # 调用 process_data 函数处理数据
+    process_data(args.source_file, args.output_file)
