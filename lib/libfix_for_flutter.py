@@ -8,6 +8,7 @@ import re
 import os
 from datetime import datetime
 import argparse
+from joblib import Parallel, delayed
 
 count10=0#原始数据RecordNumber
 count0=0#去除3NaN后的数RecordNumProcessed
@@ -102,53 +103,61 @@ def correct_LOF(data,threshold=28):
         processed_data = np.empty((0, data.shape[1]))
     return processed_data
 
-def correct_DBS(data,eps=0.9,min=5):
-    """校正数据并移除异常值"""
-    # 假设速度列是第 3、6、9、12 和 15 列（从0开始计数）
-    #eps = np.finfo(np.float64).eps
+def correct_DBS(data, eps=0.9, min=5, n_jobs=-1):
+    """校正数据并移除异常值（向量化和并行化优化版本）"""
     global count
+    # 速度列索引（从0开始计数）
     velocity_columns = [2, 5, 8, 11, 14]
-    outlier_indices = {}
-    # 移除包含 NaN 值的行
+    
+    # 1. 向量化移除包含过多NaN值的行
     nan_count = np.sum(np.isnan(data), axis=1)
     cleaned_data = data[nan_count < 4]
-    for col in velocity_columns:
-        # 选择当前列
-        X = cleaned_data[:, col].reshape(-1, 1)
-        nan_mask = np.isnan(X).any(axis=1)
-        X = X[~nan_mask]
+    
+    if cleaned_data.size == 0:
+        return np.empty((0, data.shape[1]))
+    
+    # 2. 并行处理每个速度列
+    def process_column(col_data, col_idx, eps, min):
+        # 移除NaN值
+        non_nan_mask = ~np.isnan(col_data)
+        X = col_data[non_nan_mask].reshape(-1, 1)
+        
         if X.size == 0:
-            outlier_indices[col] = np.array([], dtype=int)
-            continue
-        # 使用 DBSCAN 检测异常值
-        dbscan = DBSCAN(eps=eps, min_samples=min)  # 需要调整 eps 和 min_samples
+            return np.array([], dtype=int)
+        
+        # DBSCAN检测异常值
+        dbscan = DBSCAN(eps=eps, min_samples=min)
         outlier_labels = dbscan.fit_predict(X)
-
-        # 找出异常值的索引
-        # 对于 DBSCAN，-1 表示噪声点（即异常值）
+        
+        # 获取异常值在原数据中的索引
         outlier_mask = outlier_labels == -1
-        outlier_indices[col] = np.flatnonzero(outlier_mask)
-
-    # 创建一个新数组用于存储处理后的数据
-    processed_data = []
-    removed_values = []
-
-    for i, row in enumerate(cleaned_data):
-        new_row = row.copy()
-        for col in velocity_columns:
-            if i in outlier_indices[col]:
-                # 如果速度值被标记为异常，则将其设置为 NaN 并记录
-                new_row[col] = np.nan
-                count=count+1
-                removed_values.append((row[0], row[col]))
-        processed_data.append(new_row)
-
-    # 将列表转换为 NumPy 数组
-    processed_data = np.array(processed_data)
-    if processed_data.size == 0:
-        # 确保返回二维空数组，列数与输入一致
-        processed_data = np.empty((0, data.shape[1]))
-
+        original_indices = np.where(non_nan_mask)[0][outlier_mask]
+        
+        return original_indices
+    
+    # 提取各列数据
+    columns_data = [cleaned_data[:, col] for col in velocity_columns]
+    
+    # 并行执行DBSCAN检测
+    outlier_indices_list = Parallel(n_jobs=n_jobs)(
+        delayed(process_column)(col_data, col_idx, eps, min)
+        for col_idx, col_data in enumerate(columns_data)
+    )
+    
+    # 3. 向量化处理异常值标记
+    processed_data = cleaned_data.copy()
+    outlier_mask = np.zeros_like(processed_data, dtype=bool)
+    
+    for col_idx, col in enumerate(velocity_columns):
+        outlier_indices = outlier_indices_list[col_idx]
+        outlier_mask[outlier_indices, col] = True
+    
+    # 标记异常值为NaN
+    processed_data[outlier_mask] = np.nan
+    
+    # 计算被移除的值的数量
+    count = np.sum(outlier_mask)
+    
     return processed_data
 
 def correct_iqr(data):
