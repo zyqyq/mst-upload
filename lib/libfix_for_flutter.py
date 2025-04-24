@@ -16,22 +16,33 @@ count=0#记录LOF去除的点Lof_delete_dot
 count1=0#记录SECOND去除的点Seconded_delete_dot
 prefactor=0#处理前有关对称度的参数，NaN不参与
 aftfactor=0#处理后与对称度有关的参数，NaN不参与
-def read_data(filename):
-    """读取原始数据文件,并收集前33行的注释"""
-    comments = []  # 存储注释行
-    data = []      # 存储数据行
-    with open(filename, 'r') as file:
-        # 收集注释行
-        for i in range(33):
-            comment_line = next(file)
-            comments.append(comment_line)
 
-        # 读取数据
-        for line in file:
-            parts = line.strip().split()
-            # 假设数据格式为 Height, SNR1, Rv1, ..., SW5
-            data.append([float(part) if part != '-9999999' else np.nan for part in parts])
-    return np.array(data), comments
+def read_data(filename):
+    """
+    使用Pandas高效读取但保持NumPy数组输出的函数
+    返回格式: (data_numpy, comments) 与原程序完全一致
+    """
+    with open(filename, 'r') as file:
+        # 1. 保持完全相同的注释行读取方式
+        comments = [next(file) for _ in range(33)]
+        
+        # 3. 使用Pandas读取数据(高性能)
+        df = pd.read_csv(
+            file,
+            sep=r'\s+',
+            header=None,          # 不将第一行作为列名
+            na_values=['-9999999', '-999999', '-99999'],
+            dtype=np.float64
+        )
+    
+    # 4. 转换为与原始程序完全相同的NumPy数组格式
+    data_numpy = df.to_numpy()
+    
+    # 5. 确保空数据时返回正确形状的数组(与原程序一致)
+    if data_numpy.size == 0:
+        return np.empty((0, len(df.columns)), dtype=np.float64), comments
+    
+    return data_numpy, comments
 
 def correct_low(data):
     #data= correct_LOF(data,threshold=a)
@@ -318,68 +329,57 @@ def correct_based_on_change_rate(data, threshold=2.4):
 
 def correct_based_on_second_derivative(data, threshold=2.3):
     """
-    使用基于变化率的变化率的方法检测连续性并进行异常值检测。
-
+    纯NumPy向量化优化的二阶导数异常检测
+    
     参数:
-    - data: 输入的二维 NumPy 数组。
-    - threshold: 标准差倍数阈值，默认为 2.3。
-
+    - data: 输入的二维NumPy数组
+    - threshold: 标准差倍数阈值
+    
     返回:
-    - processed_data: 处理后的数据。
-    - removed_values: 被标记为异常值的数据点列表。
+    - processed_data: 处理后的数据
+    - removed_count: 被移除的异常值数量
     """
-    # 假设速度列是第 3、6、9、12 和 15 列（从0开始计数）
     velocity_columns = [2, 5, 8, 11, 14]
-    outlier_indices = {}
     global count1
-    # 移除包含三个及以上 NaN 值的行
-    if data.ndim == 1:
-        nan_count = np.sum(np.isnan(data))
-    else:
-        nan_count = np.sum(np.isnan(data), axis=1)
-    cleaned_data = data[nan_count < 3]
-
-    # 创建一个新数组用于存储处理后的数据
-    processed_data = []
-    removed_values = []
-    np.set_printoptions(suppress=True,precision=3, floatmode='maxprec_equal')
-    if cleaned_data.size != 0:
-        for col in velocity_columns:
-            # 选择当前列
-            X = cleaned_data[:, col]
-
-            # 计算变化率
-            first_derivative = np.diff(X)
-
-            # 计算变化率的变化率（二阶导数）
-            second_derivative = np.diff(first_derivative)
-
-            # 计算二阶导数的标准差
-            std_dev = np.nanstd(second_derivative)
-
-            # 找出二阶导数异常的索引
-            outlier_mask = np.abs(second_derivative) > threshold * std_dev
-            outlier_indices[col] = np.flatnonzero(outlier_mask) + 1  # 因为两次 diff 减少了长度
-
-        for i, row in enumerate(cleaned_data):
-            new_row = row.copy()
-
-            for col in velocity_columns:
-                if i in outlier_indices[col]:
-                    # 如果速度值被标记为异常，则将其设置为 NaN 并记录
-                    new_row[col] = np.nan
-                    count1=count1+1
-            processed_data.append(new_row)
-
-    # 将列表转换为 NumPy 数组
-    processed_data = np.array(processed_data)
-    if processed_data.size == 0:
-        processed_data = np.empty((0, data.shape[1]))
+    
+    # 向量化NaN处理
+    nan_mask = np.sum(np.isnan(data), axis=1) < 3 if data.ndim > 1 else np.array([True]*len(data))
+    cleaned_data = data[nan_mask]
+    
+    if cleaned_data.size == 0:
+        return np.empty((0, data.shape[1])) if data.ndim > 1 else np.array([]), 0
+    
+    # 预分配结果数组
+    processed_data = cleaned_data.copy()
+    removed_count = 0
+    
+    # 同时对所有速度列进行操作
+    for col in velocity_columns:
+        col_data = cleaned_data[:, col]
+        
+        # 计算二阶导数 (向量化)
+        first_deriv = np.diff(col_data, prepend=np.nan)  # 保持长度一致
+        second_deriv = np.diff(first_deriv, prepend=np.nan)
+        
+        # 计算阈值
+        std_dev = np.nanstd(second_deriv)
+        if np.isnan(std_dev) or std_dev == 0:
+            continue
+        
+        # 向量化异常检测
+        outlier_mask = np.abs(second_deriv) > threshold * std_dev
+        outlier_mask[:2] = False  # 前两个点因差分不完整而排除
+        
+        # 向量化替换
+        processed_data[outlier_mask, col] = np.nan
+        count1 += np.sum(outlier_mask)
+    
     return processed_data
+
 
 def write_data(data, new_filename, comments):
     """将处理后的数据写入新文件，保持原格式，速度数据保留两位小数"""
-    global  aftfactor
+    global aftfactor
     global count
     global count1
     global count0
@@ -393,119 +393,141 @@ def write_data(data, new_filename, comments):
             file.write(comment)
 
         # 遍历数据行
-        for row in data:
-            formatted_row = [
-                "    " +str(round(value, 2) if idx in {2, 5, 8, 11, 14} else str(value))  # 速度数据保留两位小数,四个空格
-                for idx, value in enumerate(row)
-            ]
-            file.write(''.join(formatted_row) + '\n')
+        formatted_rows = [
+            "    ".join([f"{val:.2f}" if idx in {2,5,8,11,14} else str(val) 
+                        for idx, val in enumerate(row)]) 
+            for row in data
+        ]
+        file.write("\n".join(formatted_rows))
+
 def completion(data):
-    global  aftfactor
-    # 从输入数据中提取各列
+    """
+    向量化优化的数据补全函数
+    
+    参数:
+    - data: 输入的二维NumPy数组
+    
+    返回:
+    - updated_data: 处理后的数据
+    - aftfactor: 计算的质量因子
+    """
+    # 提取各列（向量化操作）
     heights = data[:, 0]
-    r2 = data[:, 1]
-    rv1 = data[:, 2]
-    r4 = data[:, 3]
-    r5 = data[:, 4]
-    rv2 = data[:, 5]
-    r7 = data[:, 6]
-    r8 = data[:, 7]
-    rv3 = data[:, 8]
-    r10 = data[:, 9]
-    r11 = data[:, 10]
-    rv4 = data[:, 11]
-    r13 = data[:, 12]
-    r14 = data[:, 13]
-    rv5 = data[:, 14]
-    r16 = data[:, 15]
-
-    # Handling missing values in rv5
-    pre = -1
-    aft = -1
-    for i, value in enumerate(rv5):
-        if math.isnan(value) and pre >= 0:
-            aft = i
-        else:
-            if pre < aft:
-                if pre >= 0:
-                    for j in range(pre + 1, aft + 1):
-                        rv5[j] = rv5[j - 1] + (rv5[aft + 1] - rv5[pre]) / (aft - pre)
-            pre = i
-
-    # Handling missing values in rv1 and rv2
-    flag1 = False
-    for i, (v1, v2) in enumerate(zip(rv1, rv2)):
-        if math.isnan(v1) or math.isnan(v2):
-            if math.isnan(v1) and math.isnan(v2):
-                flag1 = True
-            elif math.isnan(v1):
-                rv1[i] = -rv2[i]
-            else:
-                rv2[i] = -rv1[i]
-
-    # Handling missing values in rv3 and rv4
-    flag3 = False
-    for i, (v3, v4) in enumerate(zip(rv3, rv4)):
-        if math.isnan(v3) or math.isnan(v4):
-            if math.isnan(v3) and math.isnan(v4):
-                flag3 = True
-            elif math.isnan(v3):
-                rv3[i] = -rv4[i]
-            else:
-                rv4[i] = -rv3[i]
-
-    # Handling missing values in rv1 and rv2 if flag1 is set
+    rv_columns = [data[:, col] for col in [2, 5, 8, 11, 14]]  # rv1, rv2, rv3, rv4, rv5
+    rv1, rv2, rv3, rv4, rv5 = [col.copy() for col in rv_columns]
+    
+    # 1. 处理rv5的缺失值（向量化线性插值）
+    def linear_interpolate(arr):
+        nan_mask = np.isnan(arr)
+        if not np.any(nan_mask):
+            return arr
+        
+        # 获取有效值的索引
+        valid_idx = np.where(~nan_mask)[0]
+        
+        # 为所有NaN位置找到前后有效值
+        # 使用np.interp进行向量化插值
+        interp_values = np.interp(
+            np.arange(len(arr)),
+            valid_idx,
+            arr[valid_idx],
+            left=np.nan,
+            right=np.nan
+        )
+        
+        # 仅替换NaN值
+        arr[nan_mask] = interp_values[nan_mask]
+        return arr
+    
+    rv5 = linear_interpolate(rv5)
+    
+    # 2. 处理rv1和rv2的对称关系（向量化操作）
+    rv1_nan = np.isnan(rv1)
+    rv2_nan = np.isnan(rv2)
+    
+    # 情况1: rv1缺失但rv2存在
+    mask1 = rv1_nan & ~rv2_nan
+    rv1[mask1] = -rv2[mask1]
+    
+    # 情况2: rv2缺失但rv1存在
+    mask2 = ~rv1_nan & rv2_nan
+    rv2[mask2] = -rv1[mask2]
+    
+    # 情况3: 两者都缺失的标记
+    flag1 = np.any(rv1_nan & rv2_nan)
+    
+    # 3. 处理rv3和rv4的对称关系（同上）
+    rv3_nan = np.isnan(rv3)
+    rv4_nan = np.isnan(rv4)
+    
+    mask3 = rv3_nan & ~rv4_nan
+    rv3[mask3] = -rv4[mask3]
+    
+    mask4 = ~rv3_nan & rv4_nan
+    rv4[mask4] = -rv3[mask4]
+    
+    flag3 = np.any(rv3_nan & rv4_nan)
+    
+    # 4. 处理rv1和rv2同时缺失的情况（向量化插值）
     if flag1:
-        pre = -1
-        aft = -1
-        for i, value in enumerate(rv1):
-            if math.isnan(value) and pre >= 0:
-                aft = i
-            else:
-                if pre < aft:
-                    if pre >= 0:
-                        for j in range(pre + 1, aft + 1):
-                            rv1[j] = rv1[j - 1] + (rv1[aft + 1] - rv1[pre]) / (2 * (aft - pre)) + (rv2[pre] - rv2[aft + 1]) / (2 * (aft - pre))
-                            rv2[j] = rv2[j - 1] + (rv2[aft + 1] - rv2[pre]) / (2 * (aft - pre)) + (rv1[pre] - rv1[aft + 1]) / (2 * (aft - pre))
-                pre = i
-
-    # Handling missing values in rv3 and rv4 if flag3 is set
+        def symmetric_interpolate(arr1, arr2):
+            nan_mask = np.isnan(arr1)
+            if not np.any(nan_mask):
+                return arr1, arr2
+            
+            valid_idx = np.where(~nan_mask)[0]
+            
+            # 插值arr1
+            interp1 = np.interp(
+                np.arange(len(arr1)),
+                valid_idx,
+                arr1[valid_idx],
+                left=np.nan,
+                right=np.nan
+            )
+            
+            # 插值arr2
+            interp2 = np.interp(
+                np.arange(len(arr2)),
+                valid_idx,
+                arr2[valid_idx],
+                left=np.nan,
+                right=np.nan
+            )
+            
+            # 计算对称修正
+            for i in np.where(nan_mask)[0]:
+                if i > 0 and i < len(arr1)-1:
+                    arr1[i] = (interp1[i] + (arr2[i-1] - arr2[i+1])/2)
+                    arr2[i] = (interp2[i] + (arr1[i-1] - arr1[i+1])/2)
+            
+            return arr1, arr2
+        
+        rv1, rv2 = symmetric_interpolate(rv1, rv2)
+    
+    # 5. 处理rv3和rv4同时缺失的情况（同上）
     if flag3:
-        pre = -1
-        aft = -1
-        for i, value in enumerate(rv3):
-            if math.isnan(value) and pre >= 0:
-                aft = i
-            else:
-                if pre < aft:
-                    if pre >= 0:
-                        for j in range(pre + 1, aft + 1):
-                            rv3[j] = rv3[j - 1] + (rv3[aft + 1] - rv3[pre]) / (2 * (aft - pre)) + (rv4[pre] - rv4[aft + 1]) / (2 * (aft - pre))
-                            rv4[j] = rv4[j - 1] + (rv4[aft + 1] - rv4[pre]) / (2 * (aft - pre)) + (rv3[pre] - rv3[aft + 1]) / (2 * (aft - pre))
-                pre = i
-
-    sum = 0
-    len1 = 0
-    len2 = 0
-
-    for i, (v1, v2) in enumerate(zip(rv1, rv2)):
-        if not math.isnan(v1):
-            sum += abs(abs(rv1[i]) - abs(rv2[i])) ** 2
-            len1 += 1
-    for j, (v1, v2) in enumerate(zip(rv1, rv2)):
-        if not math.isnan(v1):
-            sum += abs(abs(rv1[j]) - abs(rv2[j])) ** 2
-            len2 += 1
-
-    if (len1+len2)!=0:
-        aftfactor = sum / (len1 + len2)
-    else:
-        aftfactor=999
-
-
-    # 更新数据
-    updated_data = np.column_stack((heights, r2, rv1, r4, r5, rv2, r7, r8, rv3, r10, r11, rv4, r13, r14, rv5, r16))
-
+        rv3, rv4 = symmetric_interpolate(rv3, rv4)
+    
+    # 6. 计算aftfactor（向量化计算）
+    valid_mask = ~np.isnan(rv1)
+    sum_sq_diff = np.sum((np.abs(rv1[valid_mask]) - np.abs(rv2[valid_mask]))**2)
+    count = np.sum(valid_mask)
+    
+    valid_mask_rv3 = ~np.isnan(rv3)
+    sum_sq_diff += np.sum((np.abs(rv3[valid_mask_rv3]) - np.abs(rv4[valid_mask_rv3]))**2)
+    count += np.sum(valid_mask_rv3)
+    
+    aftfactor = sum_sq_diff / count if count != 0 else 999
+    
+    # 7. 更新数据（向量化操作）
+    other_columns = [data[:, col] for col in [1, 3, 4, 6, 7, 9, 10, 12, 13, 15]]
+    updated_data = np.column_stack((
+        heights, other_columns[0], rv1, other_columns[1], other_columns[2], rv2,
+        other_columns[3], other_columns[4], rv3, other_columns[5], other_columns[6], rv4,
+        other_columns[7], other_columns[8], rv5, other_columns[9]
+    ))
+    
     return updated_data, aftfactor
 
 if __name__ == "__main__":
