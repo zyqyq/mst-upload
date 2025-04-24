@@ -530,21 +530,24 @@ def completion(data):
     
     return updated_data, aftfactor
 
-if __name__ == "__main__":
-    # 创建 ArgumentParser 对象
-    parser = argparse.ArgumentParser(description="Process L1B data files.")
-    parser.add_argument("source_file", type=str, help="Path to the source file")
-    parser.add_argument("output_file", type=str, help="Path to the output file")
-
-    # 解析命令行参数
-    args = parser.parse_args()
-
+def process_data(source_file, output_file):
+    """
+    处理数据的核心逻辑，封装为主函数可调用的函数。
+    
+    参数:
+    - source_file: 输入文件路径
+    - output_file: 输出文件路径
+    
+    返回:
+    - count10, count0, count, count1, prefactor, aftfactor: 量化指标
+    """
     # 量化指标相关的初始化
+    global count10, count0, count, count1, prefactor, aftfactor
     count10 = 0; count0 = 0; count = 0; count1 = 0
     prefactor = 0; aftfactor = 0
 
     # 读取数据
-    original_data, comments = read_data(args.source_file)
+    original_data, comments = read_data(source_file)
     count10 = len(original_data[:, 2])
     factordetect(original_data)
 
@@ -571,8 +574,7 @@ if __name__ == "__main__":
         processed_data = np.concatenate((processed_low_height_data, processed_high_height_data), axis=0)
     else:
         processed_data = processed_low_height_data.copy()
-    count0 = len(processed_data);
-    #print(count0, end="")
+    count0 = len(processed_data)
 
     if processed_data.size == 0:
         updated_data, aftfactor = [], -1
@@ -580,4 +582,19 @@ if __name__ == "__main__":
         updated_data, aftfactor = completion(processed_data)
 
     # 将处理后的数据写入新文件
-    write_data(updated_data, args.output_file, comments)
+    write_data(updated_data, output_file, comments)
+    
+    return count10, count0, count, count1, prefactor, aftfactor
+
+
+if __name__ == "__main__":
+    # 创建 ArgumentParser 对象
+    parser = argparse.ArgumentParser(description="Process L1B data files.")
+    parser.add_argument("source_file", type=str, help="Path to the source file")
+    parser.add_argument("output_file", type=str, help="Path to the output file")
+
+    # 解析命令行参数
+    args = parser.parse_args()
+
+    # 调用 process_data 函数处理数据
+    process_data(args.source_file, args.output_file)
