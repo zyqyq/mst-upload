@@ -1,9 +1,6 @@
-import os
-import re
 import math
 import numpy as np
-from datetime import datetime
-import sys  # 添加导入sys模块
+import sys  
 
 def convert_data(file_path, new_file_path):
     with open(file_path, 'r') as fileID:

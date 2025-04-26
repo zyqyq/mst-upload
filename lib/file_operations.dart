@@ -6,23 +6,39 @@ import 'upload_Para.dart';
 import 'package:flutter/material.dart';
 import 'upload_L1B.dart';
 import 'upload_L2.dart';
-import 'dart:isolate'; // 添加dart:isolate库以使用Isolate
+import 'dart:isolate';
 import 'package:mutex/mutex.dart';
 import 'dart:async';
+import 'package:web_socket_channel/web_socket_channel.dart';
 
-// 新增: 定义全局变量来存储设置
+// 定义全局变量来存储设置
 Map<String, dynamic> _globalSettings = {};
 final logger = Logger();
 
-// 修改: 初始化时读取设置
-Future<void> _initializeSettings() async {
+// 初始化:读取设置并启动 Python WebSocket 服务端
+Future<void> _initialize() async {
+  // 启动 Python WebSocket 服务端
+  Future<void> _startPythonWebSocketServer() async {
+    try {
+      logger.debug('尝试启动 Python WebSocket 服务端: web-server.py');
+      final pythonInterpreterPath = _globalSettings['pythonInterpreterPath'];
+      final serverScriptPath = 'web-server.py';
+      //await Process.start(pythonInterpreterPath, [serverScriptPath]);
+      logger.info('Python WebSocket 服务端已启动');
+    } catch (e, stackTrace) {
+      logger.error('启动 Python WebSocket 服务端失败', stackTrace);
+      rethrow;
+    }
+  }
+
   try {
     final settingsFile = File('settings.json');
     final settingsContent = await settingsFile.readAsString();
     _globalSettings = json.decode(settingsContent);
     logger.debug('读取设置文件成功: settings.json');
+    await _startPythonWebSocketServer(); // 新增: 启动服务端
   } catch (e, stackTrace) {
-    logger.error('读取设置文件失败: settings.json', stackTrace);
+    logger.error('初始化设置失败', stackTrace);
     rethrow;
   }
 }
@@ -42,6 +58,7 @@ String getRelativeFilePath(String filePath, String folderPath, String mid) {
   return resultPath;
 }
 
+//具体处理逻辑
 Future<void> processFile(
     String filePath,
     String folderPath,
@@ -50,11 +67,12 @@ Future<void> processFile(
     String name,
     String platformId,
     Map<String, dynamic> settings,
-    Logger logger) async {
+    Logger logger,
+    WebSocketChannel webSocketChannel) async {
+  // 新增: 接收 WebSocket 连接
   final fileName = path.basename(filePath);
-  //print('开始处理文件: $fileName');
-  // try {
   logger.debug('开始处理文件: $fileName');
+
   if (fileName.contains('L1B')) {
     logger.debug('文件类型: L1B');
 
@@ -69,66 +87,70 @@ Future<void> processFile(
     await Directory(newFileDir2).create(recursive: true);
     logger.debug('创建目录: $newFileDir2');
 
+    // 使用 WebSocket 进行优化
     try {
-      logger.debug(
-          '启动 Python 进程进行优化: ${settings['pythonInterpreterPath']} ${settings['optimizationProgramPath']} $filePath $newFilePath1');
-      final result = await Process.run(settings['pythonInterpreterPath'],
-          [settings['optimizationProgramPath'], filePath, newFilePath1]);
-      if (result.stdout.isNotEmpty) {
-        print('stdout: ${result.stdout}');
-        logger.debug('处理 $fileName Python 脚本输出: ${result.stdout}');
-      }
-      if (result.stderr.isNotEmpty) {
-        print('stderr: ${result.stderr}');
-        logger.warning('优化 $fileName 时Python脚本错误输出: ${result.stderr}');
+      logger.debug('通过 WebSocket 启动优化任务');
+      webSocketChannel.sink.add(json.encode({
+        "task_type": "optimize",
+        "source_file": filePath,
+        "output_file": newFilePath1,
+      }));
+
+      await for (final message in webSocketChannel.stream) {
+        final response = json.decode(message);
+        if (response.containsKey('error')) {
+          logger.error('优化任务失败: ${response['error']}');
+        } else {
+          logger.debug('优化任务完成: ${response['result']}');
+        }
+        break; // 处理完成后退出
       }
     } catch (e, stackTrace) {
-      logger.error('Error running Python script: $e', stackTrace);
+      logger.error('WebSocket 通信失败: $e', stackTrace);
     }
+
     await uploadL1B(newFilePath1, conn, showName, name, platformId, settings);
     logger.debug('上传 L1B 文件: $newFilePath1');
 
+    // 使用 WebSocket 进行转换
     try {
-      logger.debug(
-          '启动 Python 进程进行转换: ${settings['pythonInterpreterPath']} ${settings['conversionProgramPath']} $newFilePath1 $newFilePath2');
-      final result = await Process.run(settings['pythonInterpreterPath'],
-          [settings['conversionProgramPath'], newFilePath1, newFilePath2]);
-      if (result.stdout.isNotEmpty) {
-        print('stdout: ${result.stdout}');
-        logger.debug('处理 fileName 时Python 脚本输出: ${result.stdout}');
-      }
-      if (result.stderr.isNotEmpty) {
-        print('stderr: ${result.stderr}');
-        logger.warning('转换 $fileName 时Python脚本错误输出: ${result.stderr}');
+      logger.debug('通过 WebSocket 启动转换任务');
+      webSocketChannel.sink.add(json.encode({
+        "task_type": "convert",
+        "source_file": newFilePath1,
+        "output_file": newFilePath2,
+      }));
+
+      await for (final message in webSocketChannel.stream) {
+        final response = json.decode(message);
+        if (response.containsKey('error')) {
+          logger.error('转换任务失败: ${response['error']}');
+        } else {
+          logger.debug('转换任务完成: ${response['result']}');
+        }
+        break; // 处理完成后退出
       }
     } catch (e, stackTrace) {
-      logger.error('Error running Python script: $e', stackTrace);
+      logger.error('WebSocket 通信失败: $e', stackTrace);
     }
-    await uploadL2(newFilePath2, conn, showName, name, platformId,
-        settings); // 修改: 传递 settings 参数
+
+    await uploadL2(newFilePath2, conn, showName, name, platformId, settings);
     logger.debug('上传 L2 文件: $newFilePath2');
     await uploadPara(newFilePath2, conn, showName, name, platformId,
         settings['DeviceTableName']);
     logger.debug('上传参数文件: $newFilePath2');
-    //print('上传参数文件: ${settings['DeviceTableName']}');
   } else if (filePath.contains('L2')) {
     logger.debug('文件类型: L2');
-    //print('文件类型: L2');
-    await uploadL2(filePath, conn, showName, name, platformId,
-        settings); // 修改: 传递 settings 参数
+    await uploadL2(filePath, conn, showName, name, platformId, settings);
     logger.debug('上传 L2 文件: $fileName');
   }
-  //logger.debug('文件处理完成: $fileName');
   print('文件处理完成: $fileName');
-  // } catch (e, stackTrace) {
-  //   logger.error('文件处理失败: $filePath', stackTrace);
-  // }
 }
 
+//多线程启动与管理
 Future<void> processFilesInParallel(
   List<String> fileList,
   String folderPath,
-  MySqlConnection connection,
   String showName,
   String name,
   String platformId,
@@ -245,12 +267,14 @@ class _IsolateParams {
   );
 }
 
+//单线程管理
 void _processFileIsolate(_IsolateParams params) async {
   final ReceivePort taskPort = ReceivePort();
   params.initPort.send(taskPort.sendPort);
 
   MySqlConnection? conn;
   final logger = Logger(isDebug: params.settings["enableDebugLogging"]);
+  WebSocketChannel? webSocketChannel; // 新增: WebSocket 长连接
 
   try {
     conn = await MySqlConnection.connect(ConnectionSettings(
@@ -259,7 +283,20 @@ void _processFileIsolate(_IsolateParams params) async {
       user: params.settings['databaseUsername'],
       password: params.settings['databasePassword'],
       db: params.settings['databaseName'],
-    ));
+    )).timeout(Duration(seconds: 5));
+    // 测试连接有效性
+    await conn.query('SELECT 1');
+    print('数据库连接验证成功');
+    // 初始化 WebSocket 连接
+    try {
+      logger.debug('尝试连接到 WebSocket 服务端');
+      webSocketChannel =
+          WebSocketChannel.connect(Uri.parse('ws://localhost:8765'));
+      logger.info('WebSocket 连接成功');
+    } catch (e, stackTrace) {
+      logger.error('WebSocket 连接失败: $e', stackTrace);
+      rethrow;
+    }
   } catch (e) {
     logger.error('数据库连接失败: $e');
     logger.flushLogs(params.mainPort);
@@ -277,6 +314,7 @@ void _processFileIsolate(_IsolateParams params) async {
         params.platformId,
         params.settings,
         logger,
+        webSocketChannel!, // 传递 WebSocket 连接
       );
 
       params.mainPort.send({
@@ -284,20 +322,24 @@ void _processFileIsolate(_IsolateParams params) async {
         'workerPort': taskPort.sendPort,
       });
       logger.debug('文件处理完成: $filePath');
-      //print('文件处理完成: $filePath');
       logger.flushLogs(params.mainPort);
     } catch (e) {
       logger.error('文件处理失败: $filePath');
       logger.flushLogs(params.mainPort);
     }
   });
+
+  // 清理资源
+  await conn?.close();
+  webSocketChannel?.sink.close(); // 关闭 WebSocket 连接
+  logger.debug('数据库连接和 WebSocket 连接已关闭');
 }
 
-// 遍历文件夹并处理数据
+// 主函数
 Future<void> processFiles(
     BuildContext context, ValueNotifier<int> progressNotifier) async {
   print("开始处理文件");
-  await _initializeSettings();
+  await _initialize(); // 初始化:读取设置并启动 Python WebSocket 服务端
   final showName = _globalSettings['show_name'];
   final name = _globalSettings['name'];
   final platformId = _globalSettings['Platform_id'];
@@ -309,11 +351,13 @@ Future<void> processFiles(
     password: _globalSettings['databasePassword'],
     db: _globalSettings['databaseName'],
   );
-
+  
+  //连接状态检查
   MySqlConnection? conn;
   try {
-    conn = await MySqlConnection.connect(dbParams);
-    await conn.query('USE `${_globalSettings['databaseName']}`');
+    conn = await MySqlConnection.connect(dbParams).timeout(Duration(seconds: 10));
+    await conn.query('SELECT 1');
+    //await conn.query('USE `${_globalSettings['databaseName']}`');
     logger.debug('数据库连接成功');
   } catch (e, stackTrace) {
     logger.error('无法连接到数据库: $e', stackTrace);
@@ -335,21 +379,20 @@ Future<void> processFiles(
     return;
   }
 
+  //await conn.close();
   final folderPath = _globalSettings['sourceDataPath'];
-  //final totalFiles = await _countTotalFiles(folderPath);
-  final totalFiles = 0;
   final startTime = DateTime.now();
 
+  // 递归遍历文件夹，列表存储在fileList
   final fileList = <String>[];
   await _traverseDirectory(folderPath, conn, fileList, name, platformId,
-      _globalSettings['DeviceTableName'], progressNotifier, totalFiles);
+      _globalSettings['DeviceTableName']);
   progressNotifier.value = 1;
 
   final processedFilesNotifier = ValueNotifier(0);
   await processFilesInParallel(
       fileList,
       folderPath,
-      conn!, // 修改: 传递 MySqlConnection 对象
       showName,
       name,
       platformId,
@@ -373,16 +416,70 @@ Future<void> processFiles(
   logger.writeLogsToFile();
 }
 
-// 递归遍历文件夹
+// 递归遍历文件夹，列表存储在fileList
 Future<void> _traverseDirectory(
     String dirPath,
     MySqlConnection conn,
     List<String> fileList,
     String name,
     String platformId,
-    String DeviceTableName,
-    ValueNotifier<int> duplicateCheckProgressNotifier,
-    int totalFiles) async {
+    String DeviceTableName) async {
+  // 检查是否重复记录
+  Future<bool> _isDuplicateRecord(MySqlConnection conn, String filePath,
+      String name, String platformId, String DeviceTableName) async {
+    try {
+      final fileName = path.basenameWithoutExtension(filePath);
+      final parts = fileName.split('_');
+      if (parts.length < 6) {
+        logger.warning('文件名格式错误: $fileName');
+        return true;
+      }
+
+      final dateTimeStr = parts[5];
+      if (dateTimeStr.length != 14) {
+        logger.warning('时间戳格式错误: $dateTimeStr');
+        return true;
+      }
+
+      final dt = DateTime.tryParse('${dateTimeStr.substring(0, 4)}-'
+          '${dateTimeStr.substring(4, 6)}-'
+          '${dateTimeStr.substring(6, 8)} '
+          '${dateTimeStr.substring(8, 10)}:'
+          '${dateTimeStr.substring(10, 12)}:'
+          '${dateTimeStr.substring(12)}');
+
+      if (dt == null) {
+        logger.warning('无法解析时间戳: $dateTimeStr');
+        return true;
+      }
+      final dtStr = dt.toIso8601String();
+      final MSTStr = parts[7];
+      final MST = MSTStr == 'M' ? 0 : 1;
+      //print(DeviceTableName);
+      final checkSql = '''
+          SELECT EXISTS(
+            SELECT 1 
+            FROM `${DeviceTableName}`
+            WHERE Time = ? 
+              AND name = ? 
+              AND MST = ? 
+              AND Platform_id = ?
+          )
+        ''';
+      //logger.debug('执行数据库查询: ${checkSql} 参数: [$dtStr, $name, $MSTStr, $platformId]');
+      final checkResult =
+          await conn.query(checkSql, [dtStr, name, MST, platformId]);
+      final exists = checkResult.first[0] == 1; // 确保返回值是布尔类型
+      //print('$fileName 是否重复:$exists');
+      logger.debug('$fileName 是否重复:$exists');
+      //return exists; // 显式转换为 bool
+      return false;
+    } catch (e, stackTrace) {
+      logger.error('查重失败: $e', stackTrace);
+      return true;
+    }
+  }
+
   try {
     logger.info('开始遍历目录: $dirPath');
     final dir = Directory(dirPath);
@@ -390,8 +487,8 @@ Future<void> _traverseDirectory(
 
     for (final file in files) {
       if (file is Directory) {
-        await _traverseDirectory(file.path, conn, fileList, name, platformId,
-            DeviceTableName, duplicateCheckProgressNotifier, totalFiles);
+        await _traverseDirectory(
+            file.path, conn, fileList, name, platformId, DeviceTableName);
       } else if (file.path.endsWith('.txt') || file.path.endsWith('.TXT')) {
         final filePath = file.path;
         // 检查是否重复
@@ -401,7 +498,6 @@ Future<void> _traverseDirectory(
           fileList.add(filePath);
           logger.debug('添加文件到处理列表: $filePath');
         }
-        //duplicateCheckProgressNotifier.value =(fileList.length * 10 ~/ totalFiles);
       }
     }
     logger.debug('目录遍历完成: $dirPath');
@@ -410,77 +506,7 @@ Future<void> _traverseDirectory(
   }
 }
 
-// 检查是否重复记录
-Future<bool> _isDuplicateRecord(MySqlConnection conn, String filePath,
-    String name, String platformId, String DeviceTableName) async {
-  try {
-    final fileName = path.basenameWithoutExtension(filePath);
-    final parts = fileName.split('_');
-    if (parts.length < 6) {
-      logger.warning('文件名格式错误: $fileName');
-      return true;
-    }
-
-    final dateTimeStr = parts[5];
-    if (dateTimeStr.length != 14) {
-      logger.warning('时间戳格式错误: $dateTimeStr');
-      return true;
-    }
-
-    final dt = DateTime.tryParse('${dateTimeStr.substring(0, 4)}-'
-        '${dateTimeStr.substring(4, 6)}-'
-        '${dateTimeStr.substring(6, 8)} '
-        '${dateTimeStr.substring(8, 10)}:'
-        '${dateTimeStr.substring(10, 12)}:'
-        '${dateTimeStr.substring(12)}');
-
-    if (dt == null) {
-      logger.warning('无法解析时间戳: $dateTimeStr');
-      return true;
-    }
-    final dtStr = dt.toIso8601String();
-    final MSTStr = parts[7];
-    final MST = MSTStr == 'M' ? 0 : 1;
-    //print(DeviceTableName);
-    final checkSql = '''
-      SELECT EXISTS(
-        SELECT 1 
-        FROM `${DeviceTableName}`
-        WHERE Time = ? 
-          AND name = ? 
-          AND MST = ? 
-          AND Platform_id = ?
-      )
-    ''';
-    //logger.debug('执行数据库查询: ${checkSql} 参数: [$dtStr, $name, $MSTStr, $platformId]');
-    final checkResult =
-        await conn.query(checkSql, [dtStr, name, MST, platformId]);
-    final exists = checkResult.first[0] == 1; // 确保返回值是布尔类型
-    //print('$fileName 是否重复:$exists');
-    logger.debug('$fileName 是否重复:$exists');
-    return exists; // 显式转换为 bool
-    //return false;
-  } catch (e, stackTrace) {
-    logger.error('查重失败: $e', stackTrace);
-    return true;
-  }
-}
-
-Future<int> _countTotalFiles(String dirPath) async {
-  int count = 0;
-  final dir = Directory(dirPath);
-
-  await for (final file in dir.list()) {
-    if (file is Directory) {
-      count += await _countTotalFiles(file.path);
-    } else if (file.path.endsWith('.txt') || file.path.endsWith('.TXT')) {
-      count++;
-    }
-  }
-  return count;
-}
-
-// 新增: Logger 类
+// Logger 类，完成日志相关功能
 class Logger {
   List<String> _logCache = [];
   bool _isDebug = true; // 默认为 true

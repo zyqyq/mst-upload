@@ -5,10 +5,11 @@ import libfix_for_flutter
 import change_for_flutter
 
 # WebSocket 服务端处理逻辑
-async def handle_connection(websocket, path):
+async def handle_connection(websocket):
     async for message in websocket:
         try:
             # 解析客户端发送的 JSON 数据
+            print("Received message:", message)
             data = json.loads(message)
             task_type = data.get("task_type")
             source_file = data.get("source_file")
