@@ -530,7 +530,7 @@ def completion(data):
     
     return updated_data, aftfactor
 
-def process_data(source_file, output_file):
+def optimize_data(source_file, output_file):
     """
     处理数据的核心逻辑，封装为主函数可调用的函数。
     
@@ -597,4 +597,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # 调用 process_data 函数处理数据
-    process_data(args.source_file, args.output_file)
+    optimize_data(args.source_file, args.output_file)
