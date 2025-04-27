@@ -74,7 +74,7 @@ Future<void> processFile(
   logger.debug('开始处理文件: $fileName');
 
   if (fileName.contains('L1B')) {
-        logger.debug('文件类型: L1B');
+    logger.debug('文件类型: L1B');
     await uploadL1B(filePath, conn, showName, name, platformId, settings);
     final newFilePath1 = getRelativeFilePath(filePath, folderPath, 'L1B');
     final newFileDir1 = path.dirname(newFilePath1);
@@ -86,7 +86,6 @@ Future<void> processFile(
     await Directory(newFileDir2).create(recursive: true);
     logger.debug('创建目录: $newFileDir2');
 
-    // 使用 WebSocket 进行优化
     try {
       logger.debug('通过 WebSocket 启动优化任务');
       webSocketChannel.sink.add(json.encode({
@@ -140,6 +139,7 @@ Future<void> processFile(
     logger.debug('上传参数文件: $newFilePath2');
   } else if (filePath.contains('L2')) {
     logger.debug('文件类型: L2');
+    print("AAA");
     await uploadL2(filePath, conn, showName, name, platformId, settings);
     logger.debug('上传 L2 文件: $fileName');
   }
@@ -285,7 +285,7 @@ void _processFileIsolate(_IsolateParams params) async {
       db: params.settings['databaseName'],
     )).timeout(Duration(seconds: 5));
     // 测试连接有效性
-    
+
     await conn.query('SELECT 1');
     print('数据库连接验证成功');
     // 初始化 WebSocket 连接
@@ -304,12 +304,12 @@ void _processFileIsolate(_IsolateParams params) async {
     return;
   }
   try {
-      await conn!.query('SELECT 1');
-    } catch (e) {
-      // 捕获异常并打印错误信息
-      print('数据库连接测试失败1: $e');
-      rethrow; // 如果需要继续抛出异常，可以使用 rethrow
-    }
+    await conn!.query('SELECT 1');
+  } catch (e) {
+    // 捕获异常并打印错误信息
+    print('数据库连接测试失败1: $e');
+    rethrow; // 如果需要继续抛出异常，可以使用 rethrow
+  }
 
   taskPort.listen((filePath) async {
     if (filePath == "END") {
@@ -362,11 +362,12 @@ Future<void> processFiles(
     password: _globalSettings['databasePassword'],
     db: _globalSettings['databaseName'],
   );
-  
+
   //连接状态检查
   MySqlConnection? conn;
   try {
-    conn = await MySqlConnection.connect(dbParams).timeout(Duration(seconds: 10));
+    conn =
+        await MySqlConnection.connect(dbParams).timeout(Duration(seconds: 10));
     await conn.query('SELECT 1');
     //await conn.query('USE `${_globalSettings['databaseName']}`');
     logger.debug('数据库连接成功');
@@ -401,15 +402,8 @@ Future<void> processFiles(
   progressNotifier.value = 1;
 
   final processedFilesNotifier = ValueNotifier(0);
-  await processFilesInParallel(
-      fileList,
-      folderPath,
-      showName,
-      name,
-      platformId,
-      _globalSettings,
-      progressNotifier,
-      processedFilesNotifier);
+  await processFilesInParallel(fileList, folderPath, showName, name, platformId,
+      _globalSettings, progressNotifier, processedFilesNotifier);
 
   try {
     await conn?.close();

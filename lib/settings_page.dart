@@ -50,6 +50,7 @@ class SettingsPageState extends State<SettingsPage> {
   final TextEditingController _enableDebugLoggingController =
       TextEditingController(); // 新增 enableDebugLogging 输入框控制器
   bool _isPasswordVisible = false; // 添加标志来跟踪密码是否可见
+  int _syncMode = 1; // 1表示定时模式，2表示手动模式
 
   bool _hasUnsavedChanges = false; // 添加标志来跟踪是否有未保存的更改
 
@@ -260,38 +261,46 @@ if (pythonInterpreterPath.isNotEmpty) {
 
       // 如果用户确认安装
       if (userConfirmed == true) {
-        for (final package in missingPackageList) {
-          try {
-            // 根据操作系统选择终端命令
-            final String terminalCommand;
-            final List<String> terminalArgs;
-
-            if (Platform.isWindows) {
-              terminalCommand = 'cmd.exe';
-              terminalArgs = ['/c', '$pythonInterpreterPath -m pip install $package'];
-            } else if (Platform.isMacOS) {
-              terminalCommand = 'open';
-              terminalArgs = ['-a', 'Terminal', '--args', '$pythonInterpreterPath -m pip install $package'];
-            } else {
-              terminalCommand = 'x-terminal-emulator';
-              terminalArgs = ['-e', '$pythonInterpreterPath -m pip install $package'];
-            }
-
-            // 显示系统终端窗口并安装依赖
-            final installResult = await Process.run(
-              terminalCommand,
-              terminalArgs,
+        try {
+          if (Platform.isWindows) {
+            // Windows - 使用start cmd保持窗口打开
+            await Process.run(
+              'cmd.exe',
+              [
+                '/c',
+                'start',
+                'cmd.exe',
+                '/k',
+                '$pythonInterpreterPath -m pip install -r requirements.txt'
+              ],
               runInShell: true,
             );
-            if (installResult.exitCode != 0) {
-              throw Exception('安装失败: ${installResult.stderr}');
-            }
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('已成功安装 $package')),
+          } else if (Platform.isMacOS) {
+            // MacOS - 使用osascript创建新Terminal窗口
+            final script = '''
+            tell application "Terminal"
+              do script "cd \\"${Directory.current.path}\\" && $pythonInterpreterPath -m pip install -r requirements.txt; echo \\"按任意键关闭...\\"; read dummy"
+              activate
+            end tell
+            ''';
+            await Process.run('osascript', ['-e', script]);
+          } else {
+            // Linux/Unix - 使用xterm保持窗口打开
+            await Process.run(
+              'x-terminal-emulator',
+              [
+                '-e',
+                'bash -c "$pythonInterpreterPath -m pip install -r requirements.txt; echo 按任意键关闭...; read dummy"'
+              ],
             );
-          } catch (e) {
-            _showErrorDialog('安装 $package 失败，请手动安装。错误信息：$e');
           }
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('已在终端中启动依赖安装')),
+          );
+        } catch (e) {
+          _showErrorDialog('无法打开终端: $e\n请手动运行:\n'
+              '$pythonInterpreterPath -m pip install -r requirements.txt');
         }
       }
     }
@@ -479,19 +488,59 @@ if (pythonInterpreterPath.isNotEmpty) {
                   Text('同步频率',
                       style: TextStyle(
                           fontSize: 18,
-                          fontWeight: FontWeight.bold)), // 修改: 同步频率
+                          fontWeight: FontWeight.bold)),
                   SizedBox(height: 8),
                   Row(
                     children: <Widget>[
+                      // 左侧定时模式选择器
                       Expanded(
-                        child: TextFormField(
-                          controller: _syncFrequencyController, // 修改: 同步频率控制器
-                          decoration: InputDecoration(
-                            labelText: 'n分钟一次（-1则手动模式）', // 修改: 后缀解释
-                            border: OutlineInputBorder(),
-                          ),
-                          onChanged: (value) =>
-                              setState(() => _hasUnsavedChanges = true), // 设置标志
+                        child: Row(
+                          children: [
+                            Radio<int>(
+                              value: 1,
+                              groupValue: _syncMode,
+                              onChanged: (value) {
+                                setState(() {
+                                  _syncMode = value!;
+                                  _hasUnsavedChanges = true;
+                                });
+                              },
+                            ),
+                            Text('定时模式'),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: TextFormField(
+                                controller: _syncFrequencyController,
+                                decoration: InputDecoration(
+                                  labelText: 'n分钟一次',
+                                  border: OutlineInputBorder(),
+                                ),
+                                enabled: _syncMode == 1, // 只在定时模式启用
+                                onChanged: (value) =>
+                                    setState(() => _hasUnsavedChanges = true),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      SizedBox(width: 16),
+                      // 右侧手动模式选择器
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Radio<int>(
+                              value: 2,
+                              groupValue: _syncMode,
+                              onChanged: (value) {
+                                setState(() {
+                                  _syncMode = value!;
+                                  _syncFrequencyController.text = '-1';
+                                  _hasUnsavedChanges = true;
+                                });
+                              },
+                            ),
+                            Text('手动模式'),
+                          ],
                         ),
                       ),
                     ],
