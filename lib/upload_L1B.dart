@@ -21,6 +21,15 @@ Future<void> uploadL1B(String filePath, MySqlConnection conn, String showName,
     throw Exception('Unsupported file type');
   }
 
+ try {
+  await conn.query('SELECT 1');
+} catch (e) {
+  // 捕获异常并打印错误信息
+  print('数据库连接测试失败: $e');
+  rethrow; // 如果需要继续抛出异常，可以使用 rethrow
+}
+  
+
   await insertDataToDatabase(conn, data, tableName); // 修改: 传递表名参数
 }
 

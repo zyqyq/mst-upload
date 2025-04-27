@@ -74,8 +74,7 @@ Future<void> processFile(
   logger.debug('开始处理文件: $fileName');
 
   if (fileName.contains('L1B')) {
-    logger.debug('文件类型: L1B');
-
+        logger.debug('文件类型: L1B');
     await uploadL1B(filePath, conn, showName, name, platformId, settings);
     final newFilePath1 = getRelativeFilePath(filePath, folderPath, 'L1B');
     final newFileDir1 = path.dirname(newFilePath1);
@@ -244,6 +243,7 @@ void _handleTaskCompletion(
     workerPort.send(fileList[ref]);
   } else if (processedFilesNotifier.value == totalFiles) {
     exitPort.send(true);
+    workerPort.send("END");
   }
 }
 
@@ -285,6 +285,7 @@ void _processFileIsolate(_IsolateParams params) async {
       db: params.settings['databaseName'],
     )).timeout(Duration(seconds: 5));
     // 测试连接有效性
+    
     await conn.query('SELECT 1');
     print('数据库连接验证成功');
     // 初始化 WebSocket 连接
@@ -302,8 +303,23 @@ void _processFileIsolate(_IsolateParams params) async {
     logger.flushLogs(params.mainPort);
     return;
   }
+  try {
+      await conn!.query('SELECT 1');
+    } catch (e) {
+      // 捕获异常并打印错误信息
+      print('数据库连接测试失败1: $e');
+      rethrow; // 如果需要继续抛出异常，可以使用 rethrow
+    }
 
   taskPort.listen((filePath) async {
+    if (filePath == "END") {
+      // 清理资源
+      await conn?.close();
+      webSocketChannel?.sink.close(); // 关闭 WebSocket 连接
+      logger.debug('数据库连接和 WebSocket 连接已关闭');
+      logger.flushLogs(params.mainPort);
+      return;
+    }
     try {
       await processFile(
         filePath,
@@ -328,11 +344,6 @@ void _processFileIsolate(_IsolateParams params) async {
       logger.flushLogs(params.mainPort);
     }
   });
-
-  // 清理资源
-  await conn?.close();
-  webSocketChannel?.sink.close(); // 关闭 WebSocket 连接
-  logger.debug('数据库连接和 WebSocket 连接已关闭');
 }
 
 // 主函数

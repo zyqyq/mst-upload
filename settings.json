@@ -3,7 +3,7 @@
   "conversionProgramPath": "lib/change_for_flutter.py",
   "syncFrequency": "-1",
   "databaseAddress": "127.0.0.1",
-  "databasePort": "3306",
+  "databasePort": "13306",
   "databasePassword": "mysecretpw",
   "databaseUsername": "root",
   "databaseName": "joyaiot_monitor",
