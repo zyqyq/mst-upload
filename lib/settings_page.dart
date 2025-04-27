@@ -24,8 +24,6 @@ class SettingsPage extends StatefulWidget {
 class SettingsPageState extends State<SettingsPage> {
   final TextEditingController _sourceDataPathController =
       TextEditingController();
-  final TextEditingController _conversionProgramPathController =
-      TextEditingController();
   final TextEditingController _syncFrequencyController =
       TextEditingController(); // 添加同步频率输入框的控制器
   final TextEditingController _databaseAddressController =
@@ -45,8 +43,6 @@ class SettingsPageState extends State<SettingsPage> {
       TextEditingController(); // 新增 name 输入框控制器
   final TextEditingController _pythonInterpreterPathController =
       TextEditingController(); // 新增 Python解释器地址输入框控制器
-  final TextEditingController _optimizationProgramPathController =
-      TextEditingController(); // 新增 优化程序地址输入框控制器
   final TextEditingController _enableDebugLoggingController =
       TextEditingController(); // 新增 enableDebugLogging 输入框控制器
   bool _isPasswordVisible = false; // 添加标志来跟踪密码是否可见
@@ -68,8 +64,6 @@ class SettingsPageState extends State<SettingsPage> {
       final Map<String, dynamic> settings = json.decode(contents);
       setState(() {
         _sourceDataPathController.text = settings['sourceDataPath'] ?? '';
-        _conversionProgramPathController.text =
-            settings['conversionProgramPath'] ?? '';
         _syncFrequencyController.text =
             settings['syncFrequency'] ?? ''; // 加载同步频率
         _databaseAddressController.text = settings['databaseAddress'] ?? '';
@@ -85,8 +79,6 @@ class SettingsPageState extends State<SettingsPage> {
         _nameController.text = settings['name'] ?? ''; // 加载 name
         _pythonInterpreterPathController.text =
             settings['pythonInterpreterPath'] ?? ''; // 加载 Python解释器地址
-        _optimizationProgramPathController.text =
-            settings['optimizationProgramPath'] ?? ''; // 加载 优化程序地址
         _enableDebugLoggingController.text =
             settings['enableDebugLogging'].toString(); // 加载 enableDebugLogging
         _hasUnsavedChanges = false; // 重置标志
@@ -100,7 +92,6 @@ class SettingsPageState extends State<SettingsPage> {
     final oldSettings = await _readSettings();
     final settings = {
       'sourceDataPath': _sourceDataPathController.text,
-      'conversionProgramPath': _conversionProgramPathController.text,
       'syncFrequency': _syncFrequencyController.text, // 保存同步频率
       'databaseAddress': _databaseAddressController.text,
       'databasePort': _databasePortController.text,
@@ -112,8 +103,7 @@ class SettingsPageState extends State<SettingsPage> {
       'name': _nameController.text, // 保存 name
       'pythonInterpreterPath':
           _pythonInterpreterPathController.text, // 保存 Python解释器地址
-      'optimizationProgramPath':
-          _optimizationProgramPathController.text, // 保存 优化程序地址
+
       'enableDebugLogging': _enableDebugLoggingController.text.toLowerCase() ==
           'true', // 保存 enableDebugLogging
       "L2STTableName": oldSettings["L2STTableName"],
@@ -180,9 +170,7 @@ class SettingsPageState extends State<SettingsPage> {
 
   void _validatePaths([bool leaving = false]) async {
     final sourceDataPath = _sourceDataPathController.text;
-    final conversionProgramPath = _conversionProgramPathController.text;
     final pythonInterpreterPath = _pythonInterpreterPathController.text;
-    final optimizationProgramPath = _optimizationProgramPathController.text;
 
     if (sourceDataPath.isNotEmpty && !Directory(sourceDataPath).existsSync()) {
       print(sourceDataPath);
@@ -239,8 +227,8 @@ if (pythonInterpreterPath.isNotEmpty) {
         context: context,
         builder: (BuildContext context) {
           return AlertDialog(
-            title: Text('缺少依赖'),
-            content: Text('以下依赖未安装：${missingPackageList.join(", ")}。\n是否要安装这些依赖？'),
+            title: Text('缺少python依赖'),
+            content: Text('以下python依赖包未安装：${missingPackageList.join(", ")}。\n是否要安装这些依赖？'),
             actions: <Widget>[
               TextButton(
                 child: Text('取消'),
@@ -309,21 +297,7 @@ if (pythonInterpreterPath.isNotEmpty) {
   }
 }
 
-    if (conversionProgramPath.isNotEmpty &&
-        !File(conversionProgramPath).existsSync()) {
-      if (!conversionProgramPath.endsWith('.py')) {
-        _showErrorDialog('转换程序地址不是一个有效的 .py 文件');
-        return;
-      }
-    }
 
-    if (optimizationProgramPath.isNotEmpty &&
-        !File(optimizationProgramPath).existsSync()) {
-      if (!optimizationProgramPath.endsWith('.py')) {
-        _showErrorDialog('优化程序地址不是一个有效的 .py 文件');
-        return;
-      }
-    }
 
     if (_syncFrequencyController.text.isNotEmpty) {
       int syncFrequency;
@@ -600,7 +574,7 @@ if (pythonInterpreterPath.isNotEmpty) {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Text('python外接配置',
+                  Text('python解释器配置',
                       style: TextStyle(
                           fontSize: 18, fontWeight: FontWeight.bold)), // 统一的标题
                   SizedBox(height: 8),
@@ -634,65 +608,7 @@ if (pythonInterpreterPath.isNotEmpty) {
                     ],
                   ),
                   SizedBox(height: 8),
-                  Row(
-                    children: <Widget>[
-                      Expanded(
-                        child: Tooltip(
-                          // 添加 Tooltip 小部件
-                          message: _conversionProgramPathController
-                              .text, // 设置提示信息为输入框内容
-                          child: TextFormField(
-                            controller: _conversionProgramPathController,
-                            decoration: InputDecoration(
-                              labelText: '转换程序地址',
-                              border: OutlineInputBorder(),
-                            ),
-                            onChanged: (value) => setState(
-                                () => _hasUnsavedChanges = true), // 设置标志
-                          ),
-                        ),
-                      ),
-                      SizedBox(width: 8),
-                      SizedBox(
-                        height: 56, // 设置按钮高度与输入框相同
-                        child: ElevatedButton(
-                          onPressed: () =>
-                              _selectFile(_conversionProgramPathController),
-                          child: Text('选择文件'),
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 8),
-                  Row(
-                    children: <Widget>[
-                      Expanded(
-                        child: Tooltip(
-                          // 添加 Tooltip 小部件
-                          message: _optimizationProgramPathController
-                              .text, // 设置提示信息为输入框内容
-                          child: TextFormField(
-                            controller: _optimizationProgramPathController,
-                            decoration: InputDecoration(
-                              labelText: '优化程序地址',
-                              border: OutlineInputBorder(),
-                            ),
-                            onChanged: (value) => setState(
-                                () => _hasUnsavedChanges = true), // 设置标志
-                          ),
-                        ),
-                      ),
-                      SizedBox(width: 8),
-                      SizedBox(
-                        height: 56, // 设置按钮高度与输入框相同
-                        child: ElevatedButton(
-                          onPressed: () =>
-                              _selectFile(_optimizationProgramPathController),
-                          child: Text('选择文件'),
-                        ),
-                      ),
-                    ],
-                  ),
+                  
                 ],
               ),
             ),

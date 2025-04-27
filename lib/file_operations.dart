@@ -25,6 +25,7 @@ Future<void> _initialize() async {
       final serverScriptPath = 'web-server.py';
       //await Process.start(pythonInterpreterPath, [serverScriptPath]);
       logger.info('Python WebSocket 服务端已启动');
+      print('Python WebSocket 服务端已启动');
     } catch (e, stackTrace) {
       logger.error('启动 Python WebSocket 服务端失败', stackTrace);
       rethrow;
