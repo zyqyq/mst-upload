@@ -401,134 +401,114 @@ def write_data(data, new_filename, comments):
         file.write("\n".join(formatted_rows))
 
 def completion(data):
-    """
-    向量化优化的数据补全函数
-    
-    参数:
-    - data: 输入的二维NumPy数组
-    
-    返回:
-    - updated_data: 处理后的数据
-    - aftfactor: 计算的质量因子
-    """
-    # 提取各列（向量化操作）
+    global  aftfactor
+    # 从输入数据中提取各列
     heights = data[:, 0]
-    rv_columns = [data[:, col] for col in [2, 5, 8, 11, 14]]  # rv1, rv2, rv3, rv4, rv5
-    rv1, rv2, rv3, rv4, rv5 = [col.copy() for col in rv_columns]
-    
-    # 1. 处理rv5的缺失值（向量化线性插值）
-    def linear_interpolate(arr):
-        nan_mask = np.isnan(arr)
-        if not np.any(nan_mask):
-            return arr
-        
-        # 获取有效值的索引
-        valid_idx = np.where(~nan_mask)[0]
-        
-        # 为所有NaN位置找到前后有效值
-        # 使用np.interp进行向量化插值
-        interp_values = np.interp(
-            np.arange(len(arr)),
-            valid_idx,
-            arr[valid_idx],
-            left=np.nan,
-            right=np.nan
-        )
-        
-        # 仅替换NaN值
-        arr[nan_mask] = interp_values[nan_mask]
-        return arr
-    
-    rv5 = linear_interpolate(rv5)
-    
-    # 2. 处理rv1和rv2的对称关系（向量化操作）
-    rv1_nan = np.isnan(rv1)
-    rv2_nan = np.isnan(rv2)
-    
-    # 情况1: rv1缺失但rv2存在
-    mask1 = rv1_nan & ~rv2_nan
-    rv1[mask1] = -rv2[mask1]
-    
-    # 情况2: rv2缺失但rv1存在
-    mask2 = ~rv1_nan & rv2_nan
-    rv2[mask2] = -rv1[mask2]
-    
-    # 情况3: 两者都缺失的标记
-    flag1 = np.any(rv1_nan & rv2_nan)
-    
-    # 3. 处理rv3和rv4的对称关系（同上）
-    rv3_nan = np.isnan(rv3)
-    rv4_nan = np.isnan(rv4)
-    
-    mask3 = rv3_nan & ~rv4_nan
-    rv3[mask3] = -rv4[mask3]
-    
-    mask4 = ~rv3_nan & rv4_nan
-    rv4[mask4] = -rv3[mask4]
-    
-    flag3 = np.any(rv3_nan & rv4_nan)
-    
-    # 4. 处理rv1和rv2同时缺失的情况（向量化插值）
+    r2 = data[:, 1]
+    rv1 = data[:, 2]
+    r4 = data[:, 3]
+    r5 = data[:, 4]
+    rv2 = data[:, 5]
+    r7 = data[:, 6]
+    r8 = data[:, 7]
+    rv3 = data[:, 8]
+    r10 = data[:, 9]
+    r11 = data[:, 10]
+    rv4 = data[:, 11]
+    r13 = data[:, 12]
+    r14 = data[:, 13]
+    rv5 = data[:, 14]
+    r16 = data[:, 15]
+
+    # Handling missing values in rv5
+    pre = -1
+    aft = -1
+    for i, value in enumerate(rv5):
+        if math.isnan(value) and pre >= 0:
+            aft = i
+        else:
+            if pre < aft:
+                if pre >= 0:
+                    for j in range(pre + 1, aft + 1):
+                        rv5[j] = rv5[j - 1] + (rv5[aft + 1] - rv5[pre]) / (aft - pre)
+            pre = i
+
+    # Handling missing values in rv1 and rv2
+    flag1 = False
+    for i, (v1, v2) in enumerate(zip(rv1, rv2)):
+        if math.isnan(v1) or math.isnan(v2):
+            if math.isnan(v1) and math.isnan(v2):
+                flag1 = True
+            elif math.isnan(v1):
+                rv1[i] = -rv2[i]
+            else:
+                rv2[i] = -rv1[i]
+
+    # Handling missing values in rv3 and rv4
+    flag3 = False
+    for i, (v3, v4) in enumerate(zip(rv3, rv4)):
+        if math.isnan(v3) or math.isnan(v4):
+            if math.isnan(v3) and math.isnan(v4):
+                flag3 = True
+            elif math.isnan(v3):
+                rv3[i] = -rv4[i]
+            else:
+                rv4[i] = -rv3[i]
+
+    # Handling missing values in rv1 and rv2 if flag1 is set
     if flag1:
-        def symmetric_interpolate(arr1, arr2):
-            nan_mask = np.isnan(arr1)
-            if not np.any(nan_mask):
-                return arr1, arr2
-            
-            valid_idx = np.where(~nan_mask)[0]
-            
-            # 插值arr1
-            interp1 = np.interp(
-                np.arange(len(arr1)),
-                valid_idx,
-                arr1[valid_idx],
-                left=np.nan,
-                right=np.nan
-            )
-            
-            # 插值arr2
-            interp2 = np.interp(
-                np.arange(len(arr2)),
-                valid_idx,
-                arr2[valid_idx],
-                left=np.nan,
-                right=np.nan
-            )
-            
-            # 计算对称修正
-            for i in np.where(nan_mask)[0]:
-                if i > 0 and i < len(arr1)-1:
-                    arr1[i] = (interp1[i] + (arr2[i-1] - arr2[i+1])/2)
-                    arr2[i] = (interp2[i] + (arr1[i-1] - arr1[i+1])/2)
-            
-            return arr1, arr2
-        
-        rv1, rv2 = symmetric_interpolate(rv1, rv2)
-    
-    # 5. 处理rv3和rv4同时缺失的情况（同上）
+        pre = -1
+        aft = -1
+        for i, value in enumerate(rv1):
+            if math.isnan(value) and pre >= 0:
+                aft = i
+            else:
+                if pre < aft:
+                    if pre >= 0:
+                        for j in range(pre + 1, aft + 1):
+                            rv1[j] = rv1[j - 1] + (rv1[aft + 1] - rv1[pre]) / (2 * (aft - pre)) + (rv2[pre] - rv2[aft + 1]) / (2 * (aft - pre))
+                            rv2[j] = rv2[j - 1] + (rv2[aft + 1] - rv2[pre]) / (2 * (aft - pre)) + (rv1[pre] - rv1[aft + 1]) / (2 * (aft - pre))
+                pre = i
+
+    # Handling missing values in rv3 and rv4 if flag3 is set
     if flag3:
-        rv3, rv4 = symmetric_interpolate(rv3, rv4)
-    
-    # 6. 计算aftfactor（向量化计算）
-    valid_mask = ~np.isnan(rv1)
-    sum_sq_diff = np.sum((np.abs(rv1[valid_mask]) - np.abs(rv2[valid_mask]))**2)
-    count = np.sum(valid_mask)
-    
-    valid_mask_rv3 = ~np.isnan(rv3)
-    sum_sq_diff += np.sum((np.abs(rv3[valid_mask_rv3]) - np.abs(rv4[valid_mask_rv3]))**2)
-    count += np.sum(valid_mask_rv3)
-    
-    aftfactor = sum_sq_diff / count if count != 0 else 999
-    
-    # 7. 更新数据（向量化操作）
-    other_columns = [data[:, col] for col in [1, 3, 4, 6, 7, 9, 10, 12, 13, 15]]
-    updated_data = np.column_stack((
-        heights, other_columns[0], rv1, other_columns[1], other_columns[2], rv2,
-        other_columns[3], other_columns[4], rv3, other_columns[5], other_columns[6], rv4,
-        other_columns[7], other_columns[8], rv5, other_columns[9]
-    ))
-    
+        pre = -1
+        aft = -1
+        for i, value in enumerate(rv3):
+            if math.isnan(value) and pre >= 0:
+                aft = i
+            else:
+                if pre < aft:
+                    if pre >= 0:
+                        for j in range(pre + 1, aft + 1):
+                            rv3[j] = rv3[j - 1] + (rv3[aft + 1] - rv3[pre]) / (2 * (aft - pre)) + (rv4[pre] - rv4[aft + 1]) / (2 * (aft - pre))
+                            rv4[j] = rv4[j - 1] + (rv4[aft + 1] - rv4[pre]) / (2 * (aft - pre)) + (rv3[pre] - rv3[aft + 1]) / (2 * (aft - pre))
+                pre = i
+
+    sum = 0
+    len1 = 0
+    len2 = 0
+
+    for i, (v1, v2) in enumerate(zip(rv1, rv2)):
+        if not math.isnan(v1):
+            sum += abs(abs(rv1[i]) - abs(rv2[i])) ** 2
+            len1 += 1
+    for j, (v1, v2) in enumerate(zip(rv1, rv2)):
+        if not math.isnan(v1):
+            sum += abs(abs(rv1[j]) - abs(rv2[j])) ** 2
+            len2 += 1
+
+    if (len1+len2)!=0:
+        aftfactor = sum / (len1 + len2)
+    else:
+        aftfactor=999
+
+
+    # 更新数据
+    updated_data = np.column_stack((heights, r2, rv1, r4, r5, rv2, r7, r8, rv3, r10, r11, rv4, r13, r14, rv5, r16))
+
     return updated_data, aftfactor
+
 
 def optimize_data(source_file, output_file):
     """

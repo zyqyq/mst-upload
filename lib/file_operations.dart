@@ -10,6 +10,7 @@ import 'dart:isolate';
 import 'package:mutex/mutex.dart';
 import 'dart:async';
 import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:uuid/uuid.dart';
 
 // 定义全局变量来存储设置
 Map<String, dynamic> _globalSettings = {};
@@ -69,7 +70,8 @@ Future<void> processFile(
     String platformId,
     Map<String, dynamic> settings,
     Logger logger,
-    WebSocketChannel webSocketChannel) async {
+    WebSocketChannel webSocketChannel,
+    Stream<dynamic> stream) async {
   // 新增: 接收 WebSocket 连接
   final fileName = path.basename(filePath);
   logger.debug('开始处理文件: $fileName');
@@ -89,21 +91,15 @@ Future<void> processFile(
 
     try {
       logger.debug('通过 WebSocket 启动优化任务');
+      final optimizeTaskId = Uuid().v4();
       webSocketChannel.sink.add(json.encode({
         "task_type": "optimize",
         "source_file": filePath,
         "output_file": newFilePath1,
+        "task_id": optimizeTaskId,
       }));
 
-      await for (final message in webSocketChannel.stream) {
-        final response = json.decode(message);
-        if (response.containsKey('error')) {
-          logger.error('优化任务失败: ${response['error']}');
-        } else {
-          logger.debug('优化任务完成: ${response['result']}');
-        }
-        break; // 处理完成后退出
-      }
+      await _waitForTaskResponse(stream, optimizeTaskId, "优化", logger);
     } catch (e, stackTrace) {
       logger.error('WebSocket 通信失败: $e', stackTrace);
     }
@@ -114,23 +110,18 @@ Future<void> processFile(
     // 使用 WebSocket 进行转换
     try {
       logger.debug('通过 WebSocket 启动转换任务');
+      final convertTaskId = Uuid().v4();
       webSocketChannel.sink.add(json.encode({
         "task_type": "convert",
         "source_file": newFilePath1,
         "output_file": newFilePath2,
+        "task_id": convertTaskId,
       }));
 
-      await for (final message in webSocketChannel.stream) {
-        final response = json.decode(message);
-        if (response.containsKey('error')) {
-          logger.error('转换任务失败: ${response['error']}');
-        } else {
-          logger.debug('转换任务完成: ${response['result']}');
-        }
-        break; // 处理完成后退出
-      }
+      await _waitForTaskResponse(stream, convertTaskId, "转换", logger);
     } catch (e, stackTrace) {
       logger.error('WebSocket 通信失败: $e', stackTrace);
+      print('WebSocket 通信失败: $e');
     }
 
     await uploadL2(newFilePath2, conn, showName, name, platformId, settings);
@@ -145,6 +136,31 @@ Future<void> processFile(
     logger.debug('上传 L2 文件: $fileName');
   }
   print('文件处理完成: $fileName');
+}
+
+Future<void> _waitForTaskResponse(
+  Stream<dynamic> stream,
+  String expectedTaskId,
+  String taskName,
+  Logger logger,
+) async {
+  try {
+    await for (final message in stream) {
+      final response = json.decode(message);
+      if (response['task_id'] != expectedTaskId) continue;
+
+      if (response.containsKey('error')) {
+        logger.error('${taskName}任务失败: ${response['error']}');
+        throw Exception('${taskName}任务失败: ${response['error']}');
+      } else {
+        logger.debug('${taskName}任务完成: ${response['result']}');
+        return;
+      }
+    }
+  } catch (e, stackTrace) {
+    logger.error('WebSocket 通信失败: $e', stackTrace);
+    rethrow;
+  }
 }
 
 //多线程启动与管理
@@ -276,6 +292,7 @@ void _processFileIsolate(_IsolateParams params) async {
   MySqlConnection? conn;
   final logger = Logger(isDebug: params.settings["enableDebugLogging"]);
   WebSocketChannel? webSocketChannel; // 新增: WebSocket 长连接
+  Stream<dynamic> broadcastStream;
 
   try {
     conn = await MySqlConnection.connect(ConnectionSettings(
@@ -294,6 +311,7 @@ void _processFileIsolate(_IsolateParams params) async {
       logger.debug('尝试连接到 WebSocket 服务端');
       webSocketChannel =
           WebSocketChannel.connect(Uri.parse('ws://localhost:8765'));
+      broadcastStream = webSocketChannel.stream.asBroadcastStream();
       logger.info('WebSocket 连接成功');
     } catch (e, stackTrace) {
       logger.error('WebSocket 连接失败: $e', stackTrace);
@@ -332,6 +350,7 @@ void _processFileIsolate(_IsolateParams params) async {
         params.settings,
         logger,
         webSocketChannel!, // 传递 WebSocket 连接
+        broadcastStream,
       );
 
       params.mainPort.send({

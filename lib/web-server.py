@@ -9,30 +9,62 @@ async def handle_connection(websocket):
     async for message in websocket:
         try:
             # 解析客户端发送的 JSON 数据
-            print("Received message:", message)
             data = json.loads(message)
             task_type = data.get("task_type")
+            task_id = data.get("task_id")  # 获取任务ID
             source_file = data.get("source_file")
             output_file = data.get("output_file")
 
-            if not source_file or not output_file:
-                await websocket.send(json.dumps({"error": "Missing source_file or output_file"}))
+            # 验证必要参数
+            if not all([task_type, source_file, output_file]):
+                response = {
+                    "error": "Missing required parameters",
+                    "task_id": task_id  # 包含任务ID在错误响应中
+                }
+                print(f"→ 发送消息: {response}")
+                await websocket.send(json.dumps(response))
                 continue
 
             # 根据任务类型调用不同的处理函数
             if task_type == "optimize":
-                result = libfix_for_flutter.optimize_data(source_file, output_file)
+                libfix_for_flutter.optimize_data(source_file, output_file)
+                result="optimize done"
             elif task_type == "convert":
-                result = change_for_flutter.convert_data(source_file, output_file)
+                change_for_flutter.convert_data(source_file, output_file)
+                result="convert done"
             else:
-                await websocket.send(json.dumps({"error": "Unknown task type"}))
+                response = {
+                    "error": f"Unknown task type: {task_type}",
+                    "task_id": task_id
+                }
+                await websocket.send(json.dumps(response))
                 continue
 
-            # 返回处理结果
-            await websocket.send(json.dumps({"result": result}))
+            # 构建成功响应，包含任务ID
+            response = {
+                "result": result,
+                "task_type": task_type,
+                "task_id": task_id,
+                "status": "completed"
+            }
+            await websocket.send(json.dumps(response))
+            print(f"→ 发送消息: {response}")
+
+        except json.JSONDecodeError:
+            response = {
+                "error": "Invalid JSON format",
+                "task_id": data.get("task_id", "unknown") if isinstance(data, dict) else "unknown"
+            }
+            print(f"⚠️ JSON 解析错误: {e}")
+            await websocket.send(json.dumps(response))
         except Exception as e:
             # 捕获异常并返回错误信息
-            await websocket.send(json.dumps({"error": str(e)}))
+            response = {
+                "error": str(e),
+                "task_id": data.get("task_id", "unknown") if isinstance(data, dict) else "unknown"
+            }
+            print(f"⚠️ 处理请求时发生错误: {e}")
+            await websocket.send(json.dumps(response))
 
 # 启动 WebSocket 服务器
 async def start_server():
