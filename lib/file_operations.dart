@@ -16,20 +16,53 @@ import 'package:uuid/uuid.dart';
 Map<String, dynamic> _globalSettings = {};
 final logger = Logger();
 
+// 定义全局变量来存储 WebSocket 端口
+int _webSocketPort = 8765;
+
 // 初始化:读取设置并启动 Python WebSocket 服务端
-Future<void> _initialize() async {
+Future<Process?> _initialize() async {
   // 启动 Python WebSocket 服务端
-  Future<void> _startPythonWebSocketServer() async {
+  Future<Process?> _startPythonWebSocketServer() async {
+    Future<bool> isPortOpen(String host, int port,
+        {Duration timeout = const Duration(seconds: 1)}) async {
+      try {
+        var socket = await Socket.connect(host, port, timeout: timeout);
+        await socket.close();
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+
     try {
       logger.debug('尝试启动 Python WebSocket 服务端: web-server.py');
       final pythonInterpreterPath = _globalSettings['pythonInterpreterPath'];
-      final serverScriptPath = 'web-server.py';
-      //await Process.start(pythonInterpreterPath, [serverScriptPath]);
-      logger.info('Python WebSocket 服务端已启动');
-      print('Python WebSocket 服务端已启动');
+      final serverScriptPath = '/Users/zyqyq/Program/app/lib/web-server.py';
+
+      // 动态选择端口
+      int port = 8765;
+      while (await isPortOpen('localhost', port)) {
+        port++;
+      }
+      _webSocketPort = port;
+
+      // 启动 Python 进程
+     final process = await Process.start(
+      pythonInterpreterPath, [serverScriptPath, '--port', port.toString()]);
+
+      var isPortAvailable = false;
+      while (!isPortAvailable) {
+        isPortAvailable = await isPortOpen('localhost', port);
+        await Future.delayed(Duration(milliseconds: 100));
+      }
+
+      logger.info('Python WebSocket 服务端已启动，端口: $port');
+      print('Python WebSocket 服务端已启动，端口: $port');
+      return process; // 返回启动的 Python 进程
     } catch (e, stackTrace) {
       logger.error('启动 Python WebSocket 服务端失败', stackTrace);
-      rethrow;
+      print('启动 Python WebSocket 服务端失败: $stackTrace');
+      return null; // 返回 null 表示启动失败
     }
   }
 
@@ -38,10 +71,11 @@ Future<void> _initialize() async {
     final settingsContent = await settingsFile.readAsString();
     _globalSettings = json.decode(settingsContent);
     logger.debug('读取设置文件成功: settings.json');
-    await _startPythonWebSocketServer(); // 新增: 启动服务端
+    return await _startPythonWebSocketServer(); // 返回 Python 进程
   } catch (e, stackTrace) {
     logger.error('初始化设置失败', stackTrace);
-    rethrow;
+    print("初始化设置失败:$stackTrace");
+    return null; // 返回 null 表示初始化失败
   }
 }
 
@@ -310,7 +344,7 @@ void _processFileIsolate(_IsolateParams params) async {
     try {
       logger.debug('尝试连接到 WebSocket 服务端');
       webSocketChannel =
-          WebSocketChannel.connect(Uri.parse('ws://localhost:8765'));
+          WebSocketChannel.connect(Uri.parse('ws://localhost:$_webSocketPort'));
       broadcastStream = webSocketChannel.stream.asBroadcastStream();
       logger.info('WebSocket 连接成功');
     } catch (e, stackTrace) {
@@ -335,6 +369,7 @@ void _processFileIsolate(_IsolateParams params) async {
       // 清理资源
       await conn?.close();
       webSocketChannel?.sink.close(); // 关闭 WebSocket 连接
+
       logger.debug('数据库连接和 WebSocket 连接已关闭');
       logger.flushLogs(params.mainPort);
       return;
@@ -370,7 +405,9 @@ void _processFileIsolate(_IsolateParams params) async {
 Future<void> processFiles(
     BuildContext context, ValueNotifier<int> progressNotifier) async {
   print("开始处理文件");
-  await _initialize(); // 初始化:读取设置并启动 Python WebSocket 服务端
+
+  Process? pythonProcess = await _initialize();
+
   final showName = _globalSettings['show_name'];
   final name = _globalSettings['name'];
   final platformId = _globalSettings['Platform_id'];
@@ -422,8 +459,15 @@ Future<void> processFiles(
   progressNotifier.value = 1;
 
   final processedFilesNotifier = ValueNotifier(0);
-  await processFilesInParallel(fileList, folderPath, showName, name, platformId,
-      _globalSettings, progressNotifier, processedFilesNotifier);
+
+  try {
+    await processFilesInParallel(fileList, folderPath, showName, name,
+        platformId, _globalSettings, progressNotifier, processedFilesNotifier);
+  } finally {
+    if (pythonProcess != null) {
+      pythonProcess!.kill(); // 关闭 Python 进程
+    }
+  }
 
   try {
     await conn?.close();

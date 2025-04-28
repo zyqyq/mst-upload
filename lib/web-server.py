@@ -1,3 +1,4 @@
+import argparse
 import asyncio
 import websockets
 import json
@@ -67,11 +68,15 @@ async def handle_connection(websocket):
             await websocket.send(json.dumps(response))
 
 # 启动 WebSocket 服务器
-async def start_server():
-    async with websockets.serve(handle_connection, "localhost", 8765):
-        print("WebSocket server started on ws://localhost:8765")
+async def start_server(port):
+    async with websockets.serve(handle_connection, "localhost", port):  # 修改：使用传入的端口号
+        print(f"WebSocket server started on ws://localhost:{port}")  # 修改：动态打印端口号
         await asyncio.Future()  # 持续运行
 
 if __name__ == "__main__":
-    # 启动 WebSocket 服务器
-    asyncio.run(start_server())
+    parser = argparse.ArgumentParser(description="Run WebSocket server with a specified port.")
+    parser.add_argument("--port", type=int, default=8765, help="Port number for the WebSocket server")  # 新增：添加 --port 参数
+    args = parser.parse_args()
+
+    # 启动 WebSocket 服务器，传入端口号
+    asyncio.run(start_server(args.port))
