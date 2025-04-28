@@ -23,21 +23,10 @@ int _webSocketPort = 8765;
 Future<Process?> _initialize() async {
   // 启动 Python WebSocket 服务端
   Future<Process?> _startPythonWebSocketServer() async {
-    Future<bool> isPortOpen(String host, int port,
-        {Duration timeout = const Duration(seconds: 1)}) async {
-      try {
-        var socket = await Socket.connect(host, port, timeout: timeout);
-        await socket.close();
-        return true;
-      } catch (e) {
-        return false;
-      }
-    }
-
     try {
       logger.debug('尝试启动 Python WebSocket 服务端: web-server.py');
       final pythonInterpreterPath = _globalSettings['pythonInterpreterPath'];
-      final serverScriptPath = '/Users/zyqyq/Program/app/lib/web-server.py';
+      final serverScriptPath = 'lib/web-server.py';
 
       // 动态选择端口
       int port = 8765;
@@ -49,12 +38,6 @@ Future<Process?> _initialize() async {
       // 启动 Python 进程
      final process = await Process.start(
       pythonInterpreterPath, [serverScriptPath, '--port', port.toString()]);
-
-      var isPortAvailable = false;
-      while (!isPortAvailable) {
-        isPortAvailable = await isPortOpen('localhost', port);
-        await Future.delayed(Duration(milliseconds: 100));
-      }
 
       logger.info('Python WebSocket 服务端已启动，端口: $port');
       print('Python WebSocket 服务端已启动，端口: $port');
@@ -208,7 +191,7 @@ Future<void> processFilesInParallel(
   ValueNotifier<int> progressNotifier,
   ValueNotifier<int> processedFilesNotifier,
 ) async {
-  final int maxIsolates = Platform.numberOfProcessors ~/ 2;
+  final int maxIsolates = Platform.numberOfProcessors;
   final List<Isolate> isolates = [];
   final List<SendPort> workerPorts = [];
   int totalFiles = fileList.length;
@@ -461,6 +444,11 @@ Future<void> processFiles(
   final processedFilesNotifier = ValueNotifier(0);
 
   try {
+    var isPortAvailable = false;
+      while (!isPortAvailable) {
+        isPortAvailable = await isPortOpen('localhost', _webSocketPort);
+        await Future.delayed(Duration(milliseconds: 100));
+      }
     await processFilesInParallel(fileList, folderPath, showName, name,
         platformId, _globalSettings, progressNotifier, processedFilesNotifier);
   } finally {
@@ -641,3 +629,15 @@ class Logger {
     }
   }
 }
+
+
+Future<bool> isPortOpen(String host, int port,
+      {Duration timeout = const Duration(seconds: 1)}) async {
+    try {
+      var socket = await Socket.connect(host, port, timeout: timeout);
+      await socket.close();
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
