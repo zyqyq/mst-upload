@@ -32,8 +32,6 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'MST上传',
       theme: ThemeData(
-        //primaryColor: Colors.cyan,
-        primarySwatch: Colors.cyan,
         fontFamily: Platform.isWindows
             ? 'Microsoft YaHei'
             : (Platform.isMacOS ? 'PingFang SC' : null),
