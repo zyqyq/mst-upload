@@ -7,15 +7,13 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  build-windows:
     runs-on: windows-latest # 使用最新的 Windows 运行环境
 
     steps:
       # 检出代码
-      - name: Upload Windows build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          path: build/windows/runner/Release
+      - name: Checkout code
+        uses: actions/checkout@v4
     
 
       # 设置 Flutter 环境
@@ -25,7 +23,7 @@ jobs:
           flutter-version: '3.27.1' # 指定 Flutter 版本
 
       # 新增：动态设置版本号
-      - name: Set version from tag or use tmp-test + timestamp
+      - name: Set version
         id: set_version
         run: |
           $manualTrigger = "${{ github.event_name }}" -eq "workflow_dispatch"
