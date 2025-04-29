@@ -52,8 +52,11 @@ jobs:
       # 新增：拷贝必要文件到 Release 目录
       - name: Copy settings and python scripts to Release directory
         run: |
-          cp settings-exa.json build/windows/x64/runner/Release/settings.json
-          cp requirements.txt lib/web-server.py lib/libfix_for_flutter.py lib/change_for_flutter.py build/windows/x64/runner/Release/
+          Copy-Item settings-exa.json build/windows/x64/runner/Release/settings.json
+          Copy-Item requirements.txt build/windows/x64/runner/Release/
+          Copy-Item lib/web-server.py build/windows/x64/runner/Release/
+          Copy-Item lib/libfix_for_flutter.py build/windows/x64/runner/Release/
+          Copy-Item lib/change_for_flutter.py build/windows/x64/runner/Release/
 
       # 上传构建产物
       - name: Upload Windows build artifact

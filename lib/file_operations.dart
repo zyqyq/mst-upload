@@ -148,7 +148,6 @@ Future<void> processFile(
     logger.debug('上传参数文件: $newFilePath2');
   } else if (filePath.contains('L2')) {
     logger.debug('文件类型: L2');
-    print("AAA");
     await uploadL2(filePath, conn, showName, name, platformId, settings);
     logger.debug('上传 L2 文件: $fileName');
   }
