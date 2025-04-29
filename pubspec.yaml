@@ -1,4 +1,5 @@
-name: app  # 请根据实际情况修改为你的项目名称
+name: Mstupload
+version: 0.3.1
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
@@ -18,6 +19,7 @@ dependencies:
   window_manager: ^0.4.3
   web_socket_channel: ^2.4.0
   uuid: ^3.0.6
+  package_info_plus: ^8.3.0
 
 flutter:
   uses-material-design: true

@@ -6,6 +6,7 @@ import 'package:mysql1/mysql1.dart'; // 添加 mysql1 库以进行数据库连�
 import 'package:path/path.dart' as path;
 import 'main.dart';
 import 'package:process_run/shell_run.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 class SettingsPage extends StatefulWidget {
   final Key? key;
@@ -437,13 +438,18 @@ if (pythonInterpreterPath.isNotEmpty) {
 
   bool get hasUnsavedChanges => _hasUnsavedChanges; // 添加 getter 方法
 
+  Future<String> _getAppVersion() async {
+    final packageInfo = await PackageInfo.fromPlatform();
+    return packageInfo.version;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text('设置'),
         actions: <Widget>[
-          if (_hasUnsavedChanges) // 根据标志决定是否显示“保存”按钮
+          if (_hasUnsavedChanges)
             IconButton(
               icon: Icon(Icons.save),
               onPressed: _validatePaths,
@@ -770,6 +776,30 @@ if (pythonInterpreterPath.isNotEmpty) {
                   ),
                 ],
               ),
+            ),
+          ),
+          SizedBox(height: 5), // 添加间距
+          // 新增：居中的版本和版权信息
+          Padding(
+            padding: EdgeInsets.symmetric(vertical: 16.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                FutureBuilder<String>(
+                  future: _getAppVersion(),
+                  builder: (context, snapshot) {
+                    final version = snapshot.data ?? '加载中...';
+                    return Text(
+                      'v$version',
+                      style: TextStyle(fontSize: 14),
+                    );
+                  },
+                ),
+                Text(
+                  'Copyright 2025 zyqyq',
+                  style: TextStyle(fontSize: 14),
+                ),
+              ],
             ),
           ),
         ],
