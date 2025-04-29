@@ -191,7 +191,8 @@ class _TransferPageState extends State<TransferPage> {
 
         return Scaffold(
           appBar: AppBar(
-            title: Text('Transfer Page'),
+            title: Text(''),
+            centerTitle: true,
             actions: <Widget>[
               ValueListenableBuilder<bool>(
                 valueListenable: _isPausedNotifier,

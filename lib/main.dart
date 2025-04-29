@@ -9,7 +9,6 @@ import 'file_operations.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:liquid_progress_indicator_v2/liquid_progress_indicator.dart';
 
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await windowManager.ensureInitialized();
@@ -33,8 +32,11 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'MST上传',
       theme: ThemeData(
-        primarySwatch: Colors.blue,
-        fontFamily: Platform.isWindows ? 'Microsoft YaHei' : (Platform.isMacOS ? 'PingFang SC' : null),
+        //primaryColor: Colors.cyan,
+        primarySwatch: Colors.cyan,
+        fontFamily: Platform.isWindows
+            ? 'Microsoft YaHei'
+            : (Platform.isMacOS ? 'PingFang SC' : null),
       ),
       home: MyHomePage(),
     );

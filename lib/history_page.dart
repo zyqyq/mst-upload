@@ -96,13 +96,13 @@ class _HistoryPageState extends State<HistoryPage> {
   // 修改: 根据日志级别设置不同的颜色
   Color _getLogColor(String line) {
     if (line.contains('INFO')) {
-      return Colors.green[100]!;
+      return Colors.green[50]!;
     } else if (line.contains('DEBUG')) {
-      return Colors.blue[100]!;
+      return Colors.blue[50]!;
     } else if (line.contains('ERROR')) {
-      return Colors.red[100]!;
+      return Colors.red[50]!;
     } else if (line.contains('WARNING')) {
-      return Colors.orange[100]!;
+      return Colors.orange[50]!;
     }
     return Colors.white;
   }
@@ -111,7 +111,8 @@ class _HistoryPageState extends State<HistoryPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('历史页面'),
+        title: Text('历史'),
+        centerTitle: true,
         actions: <Widget>[
           IconButton(
             icon: Icon(Icons.open_in_browser),
