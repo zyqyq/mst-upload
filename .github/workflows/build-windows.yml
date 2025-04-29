@@ -12,10 +12,11 @@ jobs:
 
     steps:
       # 检出代码
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - name: Upload Windows build artifact
+        uses: actions/upload-artifact@v4
         with:
           path: build/windows/runner/Release
+    
 
       # 设置 Flutter 环境
       - name: Set up Flutter
