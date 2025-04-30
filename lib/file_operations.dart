@@ -36,8 +36,8 @@ Future<Process?> _initialize() async {
       _webSocketPort = port;
 
       // 启动 Python 进程
-     final process = await Process.start(
-      pythonInterpreterPath, [serverScriptPath, '--port', port.toString()]);
+      final process = await Process.start(
+          pythonInterpreterPath, [serverScriptPath, '--port', port.toString()]);
 
       logger.info('Python WebSocket 服务端已启动，端口: $port');
       print('Python WebSocket 服务端已启动，端口: $port');
@@ -146,7 +146,7 @@ Future<void> processFile(
     await uploadPara(newFilePath2, conn, showName, name, platformId,
         settings['DeviceTableName']);
     logger.debug('上传参数文件: $newFilePath2');
-  } else if (filePath.contains('L2')) {
+  } else if (fileName.contains('L2')) {
     logger.debug('文件类型: L2');
     await uploadL2(filePath, conn, showName, name, platformId, settings);
     logger.debug('上传 L2 文件: $fileName');
@@ -191,6 +191,8 @@ Future<void> processFilesInParallel(
   ValueNotifier<int> processedFilesNotifier,
 ) async {
   final int maxIsolates = Platform.numberOfProcessors;
+  //final int maxIsolates = 4;
+  print("maxIsolates:$maxIsolates");
   final List<Isolate> isolates = [];
   final List<SendPort> workerPorts = [];
   int totalFiles = fileList.length;
@@ -241,14 +243,18 @@ Future<void> processFilesInParallel(
     final SendPort workerPort = await initPort.first;
     workerPorts.add(workerPort);
 
-    // 分配初始任务
-    if (currentFileIndex < totalFiles) {
-      workerPort.send(fileList[currentFileIndex++]);
-    }
+    // // 分配初始任务
+    // if (currentFileIndex < totalFiles) {
+    //   workerPort.send(fileList[currentFileIndex++]);
+    // }
   }
 
   // 等待所有任务完成
   await exitPort.first;
+
+  for (final workerPort in workerPorts) {
+    workerPort.send("END");
+  }
 
   // 清理资源
   for (final isolate in isolates) {
@@ -268,15 +274,16 @@ void _handleTaskCompletion(
   int totalFiles, {
   required int ref,
 }) {
+  //print(
+  // "send:${ref} receive:${processedFilesNotifier.value} ${fileList[processedFilesNotifier.value]}");
   processedFilesNotifier.value++;
   progressNotifier.value =
       ((processedFilesNotifier.value * 99 ~/ totalFiles) + 1).round();
 
-  if (ref < fileList.length) {
-    workerPort.send(fileList[ref]);
-  } else if (processedFilesNotifier.value == totalFiles) {
+  if (processedFilesNotifier.value >= totalFiles) {
     exitPort.send(true);
-    workerPort.send("END");
+  } else if (ref < fileList.length) {
+    workerPort.send(fileList[ref]);
   }
 }
 
@@ -345,8 +352,13 @@ void _processFileIsolate(_IsolateParams params) async {
     print('数据库连接测试失败1: $e');
     rethrow; // 如果需要继续抛出异常，可以使用 rethrow
   }
+  params.mainPort.send({
+    'type': 'taskCompleted',
+    'workerPort': taskPort.sendPort,
+  });
 
   taskPort.listen((filePath) async {
+    print("fp: $filePath");
     if (filePath == "END") {
       // 清理资源
       await conn?.close();
@@ -442,19 +454,15 @@ Future<void> processFiles(
 
   final processedFilesNotifier = ValueNotifier(0);
 
-  try {
-    var isPortAvailable = false;
-      while (!isPortAvailable) {
-        isPortAvailable = await isPortOpen('localhost', _webSocketPort);
-        await Future.delayed(Duration(milliseconds: 100));
-      }
-    await processFilesInParallel(fileList, folderPath, showName, name,
-        platformId, _globalSettings, progressNotifier, processedFilesNotifier);
-  } finally {
-    if (pythonProcess != null) {
-      pythonProcess!.kill(); // 关闭 Python 进程
-    }
+  
+  var isPortAvailable = false;
+  while (!isPortAvailable) {
+    isPortAvailable = await isPortOpen('localhost', _webSocketPort);
+    await Future.delayed(Duration(milliseconds: 100));
   }
+  await processFilesInParallel(fileList, folderPath, showName, name,
+      platformId, _globalSettings, progressNotifier, processedFilesNotifier);
+  
 
   try {
     await conn?.close();
@@ -463,13 +471,20 @@ Future<void> processFiles(
 
   final endTime = DateTime.now();
   final runTime = endTime.difference(startTime).inMilliseconds;
-  print('所有文件处理完成，程序运行时间：${runTime / 1000.0}秒');
+  print('所有文件处理完成，程序运行时间: ${runTime / 1000.0}秒 处理文件总数: ${fileList.length}');
 
   logger
       .info('所有文件处理完成，程序运行时间: ${runTime / 1000.0}秒 处理文件总数: ${fileList.length}');
 
   progressNotifier.value = 0;
   logger.writeLogsToFile();
+
+  if (pythonProcess != null) {
+    Future.delayed(Duration(seconds: 10), () {
+      print("Python  进程已关闭");
+      pythonProcess!.kill(); // 异步关闭进程
+    });
+  }
 }
 
 // 递归遍历文件夹，列表存储在fileList
@@ -629,14 +644,13 @@ class Logger {
   }
 }
 
-
 Future<bool> isPortOpen(String host, int port,
-      {Duration timeout = const Duration(seconds: 1)}) async {
-    try {
-      var socket = await Socket.connect(host, port, timeout: timeout);
-      await socket.close();
-      return true;
-    } catch (e) {
-      return false;
-    }
+    {Duration timeout = const Duration(seconds: 1)}) async {
+  try {
+    var socket = await Socket.connect(host, port, timeout: timeout);
+    await socket.close();
+    return true;
+  } catch (e) {
+    return false;
   }
+}

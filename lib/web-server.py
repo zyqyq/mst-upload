@@ -5,8 +5,12 @@ import json
 import libfix_for_flutter
 import change_for_flutter
 
+# 全局变量，用于存储定时器任务
+timer_task = None
+
 # WebSocket 服务端处理逻辑
 async def handle_connection(websocket):
+    global timer_task
     async for message in websocket:
         try:
             # 解析客户端发送的 JSON 数据
@@ -29,10 +33,10 @@ async def handle_connection(websocket):
             # 根据任务类型调用不同的处理函数
             if task_type == "optimize":
                 libfix_for_flutter.optimize_data(source_file, output_file)
-                result="optimize done"
+                result = "optimize done"
             elif task_type == "convert":
                 change_for_flutter.convert_data(source_file, output_file)
-                result="convert done"
+                result = "convert done"
             else:
                 response = {
                     "error": f"Unknown task type: {task_type}",
@@ -51,6 +55,11 @@ async def handle_connection(websocket):
             await websocket.send(json.dumps(response))
             print(f"→ 发送消息: {response}")
 
+            # 重置定时器
+            if timer_task is not None:
+                timer_task.cancel()
+            timer_task = asyncio.create_task(stop_server_after_timeout())
+
         except json.JSONDecodeError:
             response = {
                 "error": "Invalid JSON format",
@@ -66,6 +75,12 @@ async def handle_connection(websocket):
             }
             print(f"⚠️ 处理请求时发生错误: {e}")
             await websocket.send(json.dumps(response))
+
+# 定时器任务：3分钟后停止服务器
+async def stop_server_after_timeout():
+    await asyncio.sleep(180)  # 3分钟
+    print("3分钟内无连接，自动结束程序...")
+    asyncio.get_event_loop().stop()
 
 # 启动 WebSocket 服务器
 async def start_server(port):
