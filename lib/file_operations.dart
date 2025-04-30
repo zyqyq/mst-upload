@@ -107,7 +107,7 @@ Future<void> processFile(
     logger.debug('创建目录: $newFileDir2');
 
     try {
-      logger.debug('通过 WebSocket 启动优化任务');
+      //logger.debug('通过 WebSocket 启动优化任务');
       final optimizeTaskId = Uuid().v4();
       webSocketChannel.sink.add(json.encode({
         "task_type": "optimize",
@@ -210,6 +210,7 @@ Future<void> processFilesInParallel(
       } else if (message['type'] == 'taskCompleted') {
         _handleTaskCompletion(
           message['workerPort'],
+          maxIsolates,
           fileList,
           workerPorts,
           exitPort.sendPort,
@@ -266,6 +267,7 @@ Future<void> processFilesInParallel(
 
 void _handleTaskCompletion(
   SendPort workerPort,
+  int maxIsolates,
   List<String> fileList,
   List<SendPort> workerPorts,
   SendPort exitPort,
@@ -274,15 +276,20 @@ void _handleTaskCompletion(
   int totalFiles, {
   required int ref,
 }) {
-  //print(
-  // "send:${ref} receive:${processedFilesNotifier.value} ${fileList[processedFilesNotifier.value]}");
   processedFilesNotifier.value++;
-  progressNotifier.value =
-      ((processedFilesNotifier.value * 99 ~/ totalFiles) + 1).round();
+  print(
+      "send:${ref} receive:${processedFilesNotifier.value - maxIsolates} $totalFiles");
 
-  if (processedFilesNotifier.value >= totalFiles) {
+  progressNotifier.value =
+      (((processedFilesNotifier.value - maxIsolates) * 95 ~/ totalFiles) + 5)
+          .round();
+
+  if ((processedFilesNotifier.value - maxIsolates + 1) >= totalFiles) {
+    print(
+        "${fileList[0]} \n ${fileList[1]} \n ${fileList[228]} \n ${fileList[229]} ");
     exitPort.send(true);
-  } else if (ref < fileList.length) {
+    progressNotifier.value = 1;
+  } else if (ref < totalFiles) {
     workerPort.send(fileList[ref]);
   }
 }
@@ -350,7 +357,7 @@ void _processFileIsolate(_IsolateParams params) async {
   } catch (e) {
     // 捕获异常并打印错误信息
     print('数据库连接测试失败1: $e');
-    rethrow; // 如果需要继续抛出异常，可以使用 rethrow
+    rethrow;
   }
   params.mainPort.send({
     'type': 'taskCompleted',
@@ -358,7 +365,7 @@ void _processFileIsolate(_IsolateParams params) async {
   });
 
   taskPort.listen((filePath) async {
-    print("fp: $filePath");
+    //print("fp: $filePath");
     if (filePath == "END") {
       // 清理资源
       await conn?.close();
@@ -390,6 +397,7 @@ void _processFileIsolate(_IsolateParams params) async {
       logger.flushLogs(params.mainPort);
     } catch (e) {
       logger.error('文件处理失败: $filePath');
+      print("文件处理失败: $filePath $e");
       logger.flushLogs(params.mainPort);
     }
   });
@@ -454,15 +462,13 @@ Future<void> processFiles(
 
   final processedFilesNotifier = ValueNotifier(0);
 
-  
   var isPortAvailable = false;
   while (!isPortAvailable) {
     isPortAvailable = await isPortOpen('localhost', _webSocketPort);
     await Future.delayed(Duration(milliseconds: 100));
   }
-  await processFilesInParallel(fileList, folderPath, showName, name,
-      platformId, _globalSettings, progressNotifier, processedFilesNotifier);
-  
+  await processFilesInParallel(fileList, folderPath, showName, name, platformId,
+      _globalSettings, progressNotifier, processedFilesNotifier);
 
   try {
     await conn?.close();
@@ -480,7 +486,7 @@ Future<void> processFiles(
   logger.writeLogsToFile();
 
   if (pythonProcess != null) {
-    Future.delayed(Duration(seconds: 10), () {
+    Future.delayed(Duration(seconds: 5), () {
       print("Python  进程已关闭");
       pythonProcess!.kill(); // 异步关闭进程
     });
@@ -567,7 +573,7 @@ Future<void> _traverseDirectory(
             conn, filePath, name, platformId, DeviceTableName);
         if (!isDuplicate) {
           fileList.add(filePath);
-          logger.debug('添加文件到处理列表: $filePath');
+          //logger.debug('添加文件到处理列表: $filePath');
         }
       }
     }
@@ -596,6 +602,11 @@ class Logger {
 
   // 不同级别的日志写入
   void info(String message) => _log('INFO', message);
+  // void info(String message) {
+  //   _log('INFO', message);
+  //   print("info: $message");
+  // }
+
   void warning(String message) => _log('WARNING', message);
   void error(String message, [StackTrace? stackTrace]) =>
       _log('ERROR', message, stackTrace);
@@ -629,6 +640,7 @@ class Logger {
 
     // 创建副本并原子化清空（关键修复）
     final logsToWrite = _logCache.toList();
+    //print("logsToWrite: $logsToWrite");
     _logCache.clear(); // 立即清空原列表
 
     // 使用同步写入避免异步间隙（优化点）
