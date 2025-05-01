@@ -277,16 +277,16 @@ void _handleTaskCompletion(
   required int ref,
 }) {
   processedFilesNotifier.value++;
-  print(
-      "send:${ref} receive:${processedFilesNotifier.value - maxIsolates} $totalFiles");
+  //print(
+      //"send:${ref} receive:${processedFilesNotifier.value - maxIsolates} $totalFiles");
 
   progressNotifier.value =
       (((processedFilesNotifier.value - maxIsolates) * 95 ~/ totalFiles) + 5)
           .round();
 
   if ((processedFilesNotifier.value - maxIsolates + 1) >= totalFiles) {
-    print(
-        "${fileList[0]} \n ${fileList[1]} \n ${fileList[228]} \n ${fileList[229]} ");
+    // print(
+    //     "${fileList[0]} \n ${fileList[1]} \n ${fileList[228]} \n ${fileList[229]} ");
     exitPort.send(true);
     progressNotifier.value = 1;
   } else if (ref < totalFiles) {
@@ -549,8 +549,8 @@ Future<void> _traverseDirectory(
       final exists = checkResult.first[0] == 1; // 确保返回值是布尔类型
       //print('$fileName 是否重复:$exists');
       logger.debug('$fileName 是否重复:$exists');
-      //return exists; // 显式转换为 bool
-      return false;
+      return exists; // 显式转换为 bool
+      //return false;
     } catch (e, stackTrace) {
       logger.error('查重失败: $e', stackTrace);
       return true;
