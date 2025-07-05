@@ -44,3 +44,4 @@ app.*.map.json
 
 /tmp
 /process_log.txt
+/centos_root

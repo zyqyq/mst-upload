@@ -339,6 +339,14 @@ packages:
       url: "https://pub.flutter-io.cn"
     source: hosted
     version: "0.2.0"
+  semaphore:
+    dependency: "direct main"
+    description:
+      name: semaphore
+      sha256: "01fe9efb33f88e4401d72c6f4d85bdd07c63b662e2bd0abdfee2fc9cb5849555"
+      url: "https://pub.flutter-io.cn"
+    source: hosted
+    version: "0.2.1"
   sky_engine:
     dependency: transitive
     description: flutter
