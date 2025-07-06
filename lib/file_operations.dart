@@ -21,6 +21,18 @@ int _webSocketPort = 8765;
 
 // 初始化:读取设置并启动 Python WebSocket 服务端
 Future<Process?> _initialize() async {
+
+  Future<bool> isPortOpen(String host, int port,
+      {Duration timeout = const Duration(seconds: 1)}) async {
+    try {
+      var socket = await Socket.connect(host, port, timeout: timeout);
+      await socket.close();
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+  
   // 启动 Python WebSocket 服务端
   Future<Process?> _startPythonWebSocketServer() async {
     try {
@@ -67,23 +79,9 @@ Future<Process?> _initialize() async {
     print("初始化设置失败:$stackTrace");
     return null; // 返回 null 表示初始化失败
   }
-
-
-
-
-
-
-
-
-
-
-
-
-
-  
 }
 
-// 新增: 根据filePath和folderPath的相对位置，输出tmp/mid（mid是参数）下相同相对位置的的文件路径
+// 根据filePath和folderPath的相对位置，输出tmp/mid（mid是参数）下相同相对位置的的文件路径
 String getRelativeFilePath(String filePath, String folderPath, String mid) {
   final relativePath = path.relative(filePath, from: folderPath);
   final fileExtension = path.extension(relativePath);
@@ -101,22 +99,19 @@ String getRelativeFilePath(String filePath, String folderPath, String mid) {
 //具体处理逻辑
 Future<void> processFile(
     String filePath,
-    String folderPath,
     MySqlConnection conn,
-    String showName,
-    String name,
-    String platformId,
     Map<String, dynamic> settings,
     Logger logger,
     WebSocketChannel webSocketChannel,
     Stream<dynamic> stream) async {
   // 新增: 接收 WebSocket 连接
+  final folderPath = settings['sourceDataPath'];
   final fileName = path.basename(filePath);
   logger.debug('开始处理文件: $fileName');
 
   if (fileName.contains('L1B')) {
     logger.debug('文件类型: L1B');
-    await uploadL1B(filePath, conn, showName, name, platformId, settings);
+    await uploadL1B(filePath, conn, settings);
     final newFilePath1 = getRelativeFilePath(filePath, folderPath, 'L1B');
     final newFileDir1 = path.dirname(newFilePath1);
     await Directory(newFileDir1).create(recursive: true);
@@ -142,7 +137,7 @@ Future<void> processFile(
       logger.error('WebSocket 通信失败: $e', stackTrace);
     }
 
-    await uploadL1B(newFilePath1, conn, showName, name, platformId, settings);
+    await uploadL1B(newFilePath1, conn, settings);
     logger.debug('上传 L1B 文件: $newFilePath1');
 
     // 使用 WebSocket 进行转换
@@ -162,14 +157,13 @@ Future<void> processFile(
       print('WebSocket 通信失败: $e');
     }
 
-    await uploadL2(newFilePath2, conn, showName, name, platformId, settings);
+    await uploadL2(newFilePath2, conn, settings);
     logger.debug('上传 L2 文件: $newFilePath2');
-    await uploadPara(newFilePath2, conn, showName, name, platformId,
-        settings['DeviceTableName']);
+    await uploadPara(newFilePath2, conn, settings);
     logger.debug('上传参数文件: $newFilePath2');
   } else if (fileName.contains('L2')) {
     logger.debug('文件类型: L2');
-    await uploadL2(filePath, conn, showName, name, platformId, settings);
+    await uploadL2(filePath, conn, settings);
     logger.debug('上传 L2 文件: $fileName');
   }
   print('文件处理完成: $fileName');
@@ -203,10 +197,6 @@ Future<void> _waitForTaskResponse(
 //多线程启动与管理
 Future<void> processFilesInParallel(
   List<String> fileList,
-  String folderPath,
-  String showName,
-  String name,
-  String platformId,
   Map<String, dynamic> settings,
   ValueNotifier<int> progressNotifier,
   ValueNotifier<int> processedFilesNotifier,
@@ -253,10 +243,6 @@ Future<void> processFilesInParallel(
       _IsolateParams(
         initPort.sendPort,
         mainReceivePort.sendPort,
-        folderPath,
-        showName,
-        name,
-        platformId,
         settings,
       ),
     ));
@@ -318,19 +304,11 @@ void _handleTaskCompletion(
 class _IsolateParams {
   final SendPort initPort;
   final SendPort mainPort;
-  final String folderPath;
-  final String showName;
-  final String name;
-  final String platformId;
   final Map<String, dynamic> settings;
 
   _IsolateParams(
     this.initPort,
     this.mainPort,
-    this.folderPath,
-    this.showName,
-    this.name,
-    this.platformId,
     this.settings,
   );
 }
@@ -346,13 +324,7 @@ void _processFileIsolate(_IsolateParams params) async {
   Stream<dynamic> broadcastStream;
 
   try {
-    conn = await MySqlConnection.connect(ConnectionSettings(
-      host: params.settings['databaseAddress'],
-      port: int.parse(params.settings['databasePort']),
-      user: params.settings['databaseUsername'],
-      password: params.settings['databasePassword'],
-      db: params.settings['databaseName'],
-    )).timeout(Duration(seconds: 5));
+    conn = await MySqlConnection.connect(params.settings['dbParams']).timeout(Duration(seconds: 5));
     // 测试连接有效性
 
     await conn.query('SELECT 1');
@@ -399,11 +371,7 @@ void _processFileIsolate(_IsolateParams params) async {
     try {
       await processFile(
         filePath,
-        params.folderPath,
         conn!,
-        params.showName,
-        params.name,
-        params.platformId,
         params.settings,
         logger,
         webSocketChannel!, // 传递 WebSocket 连接
@@ -434,8 +402,7 @@ Future<void> processFiles(
   progressNotifier.value = 0; //处理进度：0-100
 
   //连接状态检查
-  conn = await MySqlConnection.connect(_Settings['dbParams']
-  ).timeout(Duration(seconds: 5));
+  MySqlConnection? conn = await checkDatabaseConnection(context, _Settings['dbParams']);
 
   //await conn.close();
   final startTime = DateTime.now();
@@ -446,13 +413,6 @@ Future<void> processFiles(
   progressNotifier.value = 1;
 
   final processedFilesNotifier = ValueNotifier(0); //已处理的文件数
-
-  //检查确认端口可用
-  var isPortAvailable = false;
-  while (!isPortAvailable) {
-    isPortAvailable = await isPortOpen('localhost', _webSocketPort);
-    await Future.delayed(Duration(milliseconds: 100));
-  }
 
   await processFilesInParallel(fileList,_Settings, progressNotifier, processedFilesNotifier);
 
@@ -482,13 +442,13 @@ Future<void> processFiles(
 // 递归遍历文件夹，列表存储在fileList
 Future<void> _traverseDirectory(
     String dirPath,
-    MySqlConnection conn,
+    MySqlConnection? conn,
     List<String> fileList,
     String name,
     String platformId,
     String DeviceTableName) async {
   // 检查是否重复记录
-  Future<bool> _isDuplicateRecord(MySqlConnection conn, String filePath,
+  Future<bool> _isDuplicateRecord(MySqlConnection? conn, String filePath,
       String name, String platformId, String DeviceTableName) async {
     try {
       final fileName = path.basenameWithoutExtension(filePath);
@@ -531,8 +491,8 @@ Future<void> _traverseDirectory(
         ''';
       //logger.debug('执行数据库查询: ${checkSql} 参数: [$dtStr, $name, $MSTStr, $platformId]');
       final checkResult =
-          await conn.query(checkSql, [dtStr, name, MST, platformId]);
-      final exists = checkResult.first[0] == 1; // 确保返回值是布尔类型
+          await conn?.query(checkSql, [dtStr, name, MST, platformId]);
+      final exists = checkResult?.first?[0] == 1; // 确保返回值是布尔类型
       //print('$fileName 是否重复:$exists');
       logger.debug('$fileName 是否重复:$exists');
       return exists; // 显式转换为 bool
@@ -639,17 +599,6 @@ class Logger {
     } finally {
       await sink.close(); // 异步关闭文件流
     }
-  }
-}
-
-Future<bool> isPortOpen(String host, int port,
-    {Duration timeout = const Duration(seconds: 1)}) async {
-  try {
-    var socket = await Socket.connect(host, port, timeout: timeout);
-    await socket.close();
-    return true;
-  } catch (e) {
-    return false;
   }
 }
 

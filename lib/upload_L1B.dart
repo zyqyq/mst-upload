@@ -3,9 +3,8 @@ import 'package:mysql1/mysql1.dart';
 import 'package:path/path.dart' as path;
 
 // 处理单个文件并插入数据库
-Future<void> uploadL1B(String filePath, MySqlConnection conn, String showName,
-    String name, String platformId, Map<String, dynamic> settings) async {
-  final data = await readAndProcessFile(filePath, showName, name, platformId);
+Future<void> uploadL1B(String filePath, MySqlConnection conn, Map<String, dynamic> settings) async {
+  final data = await readAndProcessFile(filePath, settings['show_name'],settings['name'], settings['Platform_id']);
   final fileName = path.basenameWithoutExtension(filePath);
   String tableName;
 

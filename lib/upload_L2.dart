@@ -10,8 +10,11 @@ double _parseDouble(String str) {
   return double.parse(str);
 }
 
-Future<void> uploadL2(String newFilePath2, MySqlConnection conn, String showName, String name, String platformId, Map<String, dynamic> settings) async {
+Future<void> uploadL2(String newFilePath2, MySqlConnection conn, Map<String, dynamic> settings) async {
   final fileName = path.basenameWithoutExtension(newFilePath2);
+  final showName = settings['show_name']; // 从设置中读取显示名称
+  final name = settings['name']; // 从设置中读取名称
+  final platformId = settings['Platform_id']; // 从设置中读取平台ID
   String tableName;
 
   if (fileName.endsWith('ST')) {
