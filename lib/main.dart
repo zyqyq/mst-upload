@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'transfer_page.dart'; // 导入TransferPage
-import 'history_page.dart'; // 导入HistoryPage
-import 'settings_page.dart'; // 导入SettingsPage
+import 'transfer_page.dart';
+import 'history_page.dart';
+import 'settings_page.dart';
+import 'demo_page.dart'; // 新增: 导入 DemoPage
 import 'dart:async'; // 添加: 引入 Timer 所需的库
 import 'dart:io'; // 添加: 导入 dart:io 库以使用 File
 import 'dart:convert'; // 添加: 导入 dart:convert 库以使用 json
@@ -57,24 +58,46 @@ class _MyHomePageState extends State<MyHomePage> {
   late final List<Widget> _pages;
   bool _isPaused = false;
   Timer? _syncTimer; // 添加: 定义 Timer 变量来存储当前的定时器实例
+  late double _navWidthRatio;
+  final double _defaultNavWidthRatio = 0.25;
+  final double _demoNavWidthRatio = 0.125;
+  final Size _defaultWindowSize = const Size(900, 600);
+  final Size _demoWindowSize = const Size(1800, 1200);
 
   @override
   void initState() {
     super.initState();
     _settingsPageKey = GlobalKey<SettingsPageState>();
-    _countdownNotifier = ValueNotifier<int>(0); // 修改: 初始化 ValueNotifier
-    _progressNotifier = ValueNotifier<int>(0); // 新增: 初始化进度 ValueNotifier
+    _countdownNotifier = ValueNotifier<int>(0);
+    _progressNotifier = ValueNotifier<int>(0);
+    _navWidthRatio = _defaultNavWidthRatio;
     _pages = [
       TransferPage(
         countdownNotifier: _countdownNotifier,
         onTogglePause: _handleTogglePause,
-      ), // 新增: 传递进度 ValueNotifier
+      ),
       HistoryPage(),
-      SettingsPage(
-          key: _settingsPageKey,
-          onSettingsSaved: _onSettingsSaved), // 添加: 传递回调函数
+      SettingsPage(key: _settingsPageKey, onSettingsSaved: _onSettingsSaved),
+      DemoPage(
+        onEnter: _onDemoEnter,
+        onExit: _onDemoExit,
+      ),
     ];
     _startSyncTimer();
+  }
+
+  void _onDemoEnter() async {
+    setState(() {
+      _navWidthRatio = _demoNavWidthRatio;
+    });
+    await windowManager.setSize(_demoWindowSize);
+  }
+
+  void _onDemoExit() async {
+    setState(() {
+      _navWidthRatio = _defaultNavWidthRatio;
+    });
+    await windowManager.setSize(_defaultWindowSize);
   }
 
   // 添加: 读取 setting.json 文件
@@ -162,6 +185,22 @@ class _MyHomePageState extends State<MyHomePage> {
     _startSyncTimer(); // 重新启动同步定时器
   }
 
+  void _handlePageSwitch(int newIndex) {
+    if (_selectedIndex == 3 && newIndex != 3) {
+      // 离开 DemoPage
+      final demo = _pages[3] as DemoPage;
+      demo.onExit?.call();
+    }
+    if (newIndex == 3 && _selectedIndex != 3) {
+      // 进入 DemoPage
+      final demo = _pages[3] as DemoPage;
+      demo.onEnter?.call();
+    }
+    setState(() {
+      _selectedIndex = newIndex;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -175,7 +214,7 @@ class _MyHomePageState extends State<MyHomePage> {
                   valueListenable: _progressNotifier,
                   builder: (context, progress, child) {
                     return Container(
-                      width: MediaQuery.of(context).size.width * 0.25,
+                      width: MediaQuery.of(context).size.width * _navWidthRatio,
                       child: Stack(
                         children: [
                           Positioned.fill(
@@ -212,14 +251,10 @@ class _MyHomePageState extends State<MyHomePage> {
                                     .currentState
                                     ?.showUnsavedChangesDialog();
                                 if (shouldPop == true) {
-                                  setState(() {
-                                    _selectedIndex = index;
-                                  });
+                                  _handlePageSwitch(index);
                                 }
                               } else {
-                                setState(() {
-                                  _selectedIndex = index;
-                                });
+                                _handlePageSwitch(index);
                               }
                             },
                             labelType: NavigationRailLabelType.none,
@@ -258,6 +293,11 @@ class _MyHomePageState extends State<MyHomePage> {
                                 selectedIcon: Icon(Icons.settings),
                                 label: Text('设置'),
                               ),
+                              NavigationRailDestination(
+                                icon: Icon(Icons.slideshow),
+                                selectedIcon: Icon(Icons.slideshow),
+                                label: Text('演示'), // 新增: "演示"
+                              ),
                             ],
                           ),
                         ],
@@ -266,7 +306,7 @@ class _MyHomePageState extends State<MyHomePage> {
                   },
                 ),
                 Expanded(
-                  child: _pages[_selectedIndex],
+                  child: _pages[_selectedIndex.clamp(0, _pages.length - 1)],
                 ),
               ],
             ),
