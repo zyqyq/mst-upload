@@ -3,8 +3,11 @@ import 'dart:io';
 import 'package:mysql1/mysql1.dart';
 import 'package:path/path.dart' as path;
 
-Future<void> uploadPara(String filePath, MySqlConnection conn, String showName,
-    String name, String platformId, String set) async {
+Future<void> uploadPara(String filePath, MySqlConnection conn, Map<String, dynamic> settings) async {
+  final showName = settings['show_name']; // 从设置中读取显示名称
+  final name = settings['name']; // 从设置中读取名称
+  final platformId = settings['Platform_id']; // 从设置中读取平台ID
+  final set =settings['DeviceTableName']; // 从设置中读取表名
   // 读取并处理文件
   final data = await readAndProcessFile(filePath, showName, name, platformId);
   // 插入数据到数据库
