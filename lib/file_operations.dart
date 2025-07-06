@@ -13,7 +13,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:uuid/uuid.dart';
 
 // 定义全局变量来存储设置
-Map<String, dynamic> _globalSettings = {};
+Map<String, dynamic> _Settings = {};
 final logger = Logger();
 
 // 定义全局变量来存储 WebSocket 端口
@@ -25,7 +25,7 @@ Future<Process?> _initialize() async {
   Future<Process?> _startPythonWebSocketServer() async {
     try {
       logger.debug('尝试启动 Python WebSocket 服务端: web-server.py');
-      final pythonInterpreterPath = _globalSettings['pythonInterpreterPath'];
+      final pythonInterpreterPath = _Settings['pythonInterpreterPath'];
       final serverScriptPath = 'lib/web-server.py';
 
       // 动态选择端口
@@ -52,7 +52,14 @@ Future<Process?> _initialize() async {
   try {
     final settingsFile = File('settings.json');
     final settingsContent = await settingsFile.readAsString();
-    _globalSettings = json.decode(settingsContent);
+    _Settings = json.decode(settingsContent);
+    _Settings['dbParams'] = ConnectionSettings(
+      host: _Settings['databaseAddress'],
+      port: int.parse(_Settings['databasePort']),
+      user: _Settings['databaseUsername'],
+      password: _Settings['databasePassword'],
+      db: _Settings['databaseName'],
+    );
     logger.debug('读取设置文件成功: settings.json');
     return await _startPythonWebSocketServer(); // 返回 Python 进程
   } catch (e, stackTrace) {
@@ -60,6 +67,20 @@ Future<Process?> _initialize() async {
     print("初始化设置失败:$stackTrace");
     return null; // 返回 null 表示初始化失败
   }
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
 }
 
 // 新增: 根据filePath和folderPath的相对位置，输出tmp/mid（mid是参数）下相同相对位置的的文件路径
@@ -410,65 +431,30 @@ Future<void> processFiles(
 
   Process? pythonProcess = await _initialize();
 
-  final showName = _globalSettings['show_name'];
-  final name = _globalSettings['name'];
-  final platformId = _globalSettings['Platform_id'];
-  progressNotifier.value = 0;
-  final dbParams = ConnectionSettings(
-    host: _globalSettings['databaseAddress'],
-    port: int.parse(_globalSettings['databasePort']),
-    user: _globalSettings['databaseUsername'],
-    password: _globalSettings['databasePassword'],
-    db: _globalSettings['databaseName'],
-  );
+  progressNotifier.value = 0; //处理进度：0-100
 
   //连接状态检查
-  MySqlConnection? conn;
-  try {
-    conn =
-        await MySqlConnection.connect(dbParams).timeout(Duration(seconds: 10));
-    await conn.query('SELECT 1');
-    //await conn.query('USE `${_globalSettings['databaseName']}`');
-    logger.debug('数据库连接成功');
-  } catch (e, stackTrace) {
-    logger.error('无法连接到数据库: $e', stackTrace);
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('数据库连接错误'),
-        content: Text('$e'),
-        actions: <Widget>[
-          TextButton(
-            child: Text('确定'),
-            onPressed: () {
-              Navigator.of(context).pop();
-            },
-          ),
-        ],
-      ),
-    );
-    return;
-  }
+  conn = await MySqlConnection.connect(_Settings['dbParams']
+  ).timeout(Duration(seconds: 5));
 
   //await conn.close();
-  final folderPath = _globalSettings['sourceDataPath'];
   final startTime = DateTime.now();
 
   // 递归遍历文件夹，列表存储在fileList
   final fileList = <String>[];
-  await _traverseDirectory(folderPath, conn, fileList, name, platformId,
-      _globalSettings['DeviceTableName']);
+  await _traverseDirectory(_Settings['sourceDataPath'], conn, fileList, _Settings['name'], _Settings['Platform_id'],_Settings['DeviceTableName']);
   progressNotifier.value = 1;
 
-  final processedFilesNotifier = ValueNotifier(0);
+  final processedFilesNotifier = ValueNotifier(0); //已处理的文件数
 
+  //检查确认端口可用
   var isPortAvailable = false;
   while (!isPortAvailable) {
     isPortAvailable = await isPortOpen('localhost', _webSocketPort);
     await Future.delayed(Duration(milliseconds: 100));
   }
-  await processFilesInParallel(fileList, folderPath, showName, name, platformId,
-      _globalSettings, progressNotifier, processedFilesNotifier);
+
+  await processFilesInParallel(fileList,_Settings, progressNotifier, processedFilesNotifier);
 
   try {
     await conn?.close();
@@ -591,7 +577,7 @@ class Logger {
 
   // 修改构造函数参数名
   Logger({bool? isDebug}) {
-    _isDebug = isDebug ?? _globalSettings['enableDebugLogging'] ?? true;
+    _isDebug = isDebug ?? _Settings['enableDebugLogging'] ?? true;
   }
   // 基本日志写入函数
   void _log(String level, String message, [StackTrace? stackTrace]) {
@@ -611,8 +597,8 @@ class Logger {
   void error(String message, [StackTrace? stackTrace]) =>
       _log('ERROR', message, stackTrace);
   void debug(String message) {
-    if (_globalSettings['enableDebugLogging'] != null) {
-      if (_globalSettings['enableDebugLogging'] == true) {
+    if (_Settings['enableDebugLogging'] != null) {
+      if (_Settings['enableDebugLogging'] == true) {
         _log('DEBUG', message);
       }
     } else if (_isDebug) {
@@ -664,5 +650,35 @@ Future<bool> isPortOpen(String host, int port,
     return true;
   } catch (e) {
     return false;
+  }
+}
+
+// 新增数据库连接检查函数
+Future<MySqlConnection?> checkDatabaseConnection(
+    BuildContext context, ConnectionSettings dbParams) async {
+  MySqlConnection? conn;
+  try {
+    conn = await MySqlConnection.connect(dbParams).timeout(Duration(seconds: 10));
+    await conn.query('SELECT 1');
+    logger.debug('数据库连接成功');
+    return conn;
+  } catch (e, stackTrace) {
+    logger.error('无法连接到数据库: $e', stackTrace);
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('数据库连接错误'),
+        content: Text('$e'),
+        actions: <Widget>[
+          TextButton(
+            child: Text('确定'),
+            onPressed: () {
+              Navigator.of(context).pop();
+            },
+          ),
+        ],
+      ),
+    );
+    return null;
   }
 }
