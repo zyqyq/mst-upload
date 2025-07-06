@@ -6,9 +6,6 @@ import 'upload_Para.dart';
 import 'package:flutter/material.dart';
 import 'upload_L1B.dart';
 import 'upload_L2.dart';
-import 'dart:isolate';
-import 'package:mutex/mutex.dart';
-import 'dart:async';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:uuid/uuid.dart';
 
@@ -21,7 +18,6 @@ int _webSocketPort = 8765;
 
 // 初始化:读取设置并启动 Python WebSocket 服务端
 Future<Process?> _initialize() async {
-
   Future<bool> isPortOpen(String host, int port,
       {Duration timeout = const Duration(seconds: 1)}) async {
     try {
@@ -32,7 +28,7 @@ Future<Process?> _initialize() async {
       return false;
     }
   }
-  
+
   // 启动 Python WebSocket 服务端
   Future<Process?> _startPythonWebSocketServer() async {
     try {
@@ -194,247 +190,105 @@ Future<void> _waitForTaskResponse(
   }
 }
 
-//多线程启动与管理
-Future<void> processFilesInParallel(
-  List<String> fileList,
-  Map<String, dynamic> settings,
-  ValueNotifier<int> progressNotifier,
-  ValueNotifier<int> processedFilesNotifier,
-) async {
-  final int maxIsolates = Platform.numberOfProcessors;
-  //final int maxIsolates = 4;
-  print("maxIsolates:$maxIsolates");
-  final List<Isolate> isolates = [];
-  final List<SendPort> workerPorts = [];
-  int totalFiles = fileList.length;
-  int currentFileIndex = 0;
+// Logger 类，完成日志相关功能
+class Logger {
+  List<String> _logCache = [];
+  bool _isDebug = true; // 默认为 true
 
-  final ReceivePort mainReceivePort = ReceivePort();
-  final ReceivePort exitPort = ReceivePort();
+  Logger({bool? isDebug}) {
+    _isDebug = isDebug ?? _Settings['enableDebugLogging'] ?? true;
+  }
+  // 基本日志写入函数
+  void _log(String level, String message, [StackTrace? stackTrace]) {
+    final logEntry =
+        '\n[${DateTime.now().toIso8601String()}] $level: $message${stackTrace != null ? '\n$stackTrace' : ''}';
+    _logCache.add(logEntry);
+  }
 
-  // 主端口监听逻辑
-  mainReceivePort.listen((message) {
-    if (message is Map<String, dynamic>) {
-      if (message['type'] == 'log') {
-        logger.syncState(message['data']);
-        logger.writeLogsToFile();
-      } else if (message['type'] == 'taskCompleted') {
-        _handleTaskCompletion(
-          message['workerPort'],
-          maxIsolates,
-          fileList,
-          workerPorts,
-          exitPort.sendPort,
-          processedFilesNotifier,
-          progressNotifier,
-          totalFiles,
-          ref: currentFileIndex,
-        );
-        currentFileIndex++;
+  void info(String message) => _log('INFO', message);
+  void warning(String message) => _log('WARNING', message);
+  void error(String message, [StackTrace? stackTrace]) =>
+      _log('ERROR', message, stackTrace);
+  void debug(String message) {
+    if (_Settings['enableDebugLogging'] != null) {
+      if (_Settings['enableDebugLogging'] == true) {
+        _log('DEBUG', message);
       }
+    } else if (_isDebug) {
+      _log('DEBUG', message);
     }
-  });
-
-  // 创建隔离线程
-  for (int i = 0; i < maxIsolates; i++) {
-    final initPort = ReceivePort();
-    isolates.add(await Isolate.spawn(
-      _processFileIsolate,
-      _IsolateParams(
-        initPort.sendPort,
-        mainReceivePort.sendPort,
-        settings,
-      ),
-    ));
-
-    // 获取工作线程通信端口
-    final SendPort workerPort = await initPort.first;
-    workerPorts.add(workerPort);
-
-    // // 分配初始任务
-    // if (currentFileIndex < totalFiles) {
-    //   workerPort.send(fileList[currentFileIndex++]);
-    // }
   }
 
-  // 等待所有任务完成
-  await exitPort.first;
+  void fatal(String message, [StackTrace? stackTrace]) =>
+      _log('FATAL', message, stackTrace);
 
-  for (final workerPort in workerPorts) {
-    workerPort.send("END");
-  }
-
-  // 清理资源
-  for (final isolate in isolates) {
-    isolate.kill(priority: Isolate.immediate);
-  }
-  mainReceivePort.close();
-  exitPort.close();
-}
-
-void _handleTaskCompletion(
-  SendPort workerPort,
-  int maxIsolates,
-  List<String> fileList,
-  List<SendPort> workerPorts,
-  SendPort exitPort,
-  ValueNotifier<int> processedFilesNotifier,
-  ValueNotifier<int> progressNotifier,
-  int totalFiles, {
-  required int ref,
-}) {
-  processedFilesNotifier.value++;
-  //print(
-      //"send:${ref} receive:${processedFilesNotifier.value - maxIsolates} $totalFiles");
-
-  progressNotifier.value =
-      (((processedFilesNotifier.value - maxIsolates) * 95 ~/ totalFiles) + 5)
-          .round();
-
-  if ((processedFilesNotifier.value - maxIsolates + 1) >= totalFiles) {
-    // print(
-    //     "${fileList[0]} \n ${fileList[1]} \n ${fileList[228]} \n ${fileList[229]} ");
-    exitPort.send(true);
-    progressNotifier.value = 1;
-  } else if (ref < totalFiles) {
-    workerPort.send(fileList[ref]);
+  void writeLogsToFile() async {
+    final file = File('process_log.txt');
+    final logsToWrite = _logCache.toList();
+    _logCache.clear();
+    final sink = file.openWrite(mode: FileMode.append);
+    for (final logEntry in logsToWrite) {
+      sink.write(logEntry);
+    }
+    await sink.close();
   }
 }
 
-class _IsolateParams {
-  final SendPort initPort;
-  final SendPort mainPort;
-  final Map<String, dynamic> settings;
+// 主函数（单线程处理文件）
+Future<void> processFiles(
+    BuildContext context, ValueNotifier<int> progressNotifier) async {
+  print("开始处理文件");
+  Process? pythonProcess = await _initialize();
+  progressNotifier.value = 0;
+  MySqlConnection? conn =
+      await checkDatabaseConnection(context, _Settings['dbParams']);
+  final startTime = DateTime.now();
+  final fileList = <String>[];
+  await _traverseDirectory(
+      _Settings['sourceDataPath'],
+      conn,
+      fileList,
+      _Settings['name'],
+      _Settings['Platform_id'],
+      _Settings['DeviceTableName']);
+  progressNotifier.value = 1;
 
-  _IsolateParams(
-    this.initPort,
-    this.mainPort,
-    this.settings,
-  );
-}
-
-//单线程管理
-void _processFileIsolate(_IsolateParams params) async {
-  final ReceivePort taskPort = ReceivePort();
-  params.initPort.send(taskPort.sendPort);
-
-  MySqlConnection? conn;
-  final logger = Logger(isDebug: params.settings["enableDebugLogging"]);
-  WebSocketChannel? webSocketChannel; // 新增: WebSocket 长连接
-  Stream<dynamic> broadcastStream;
-
-  try {
-    conn = await MySqlConnection.connect(params.settings['dbParams']).timeout(Duration(seconds: 5));
-    // 测试连接有效性
-
-    await conn.query('SELECT 1');
-    print('数据库连接验证成功');
-    // 初始化 WebSocket 连接
-    try {
-      logger.debug('尝试连接到 WebSocket 服务端');
-      webSocketChannel =
-          WebSocketChannel.connect(Uri.parse('ws://localhost:$_webSocketPort'));
-      broadcastStream = webSocketChannel.stream.asBroadcastStream();
-      logger.info('WebSocket 连接成功');
-    } catch (e, stackTrace) {
-      logger.error('WebSocket 连接失败: $e', stackTrace);
-      rethrow;
-    }
-  } catch (e) {
-    logger.error('数据库连接失败: $e');
-    logger.flushLogs(params.mainPort);
-    return;
-  }
-  try {
-    await conn!.query('SELECT 1');
-  } catch (e) {
-    // 捕获异常并打印错误信息
-    print('数据库连接测试失败1: $e');
-    rethrow;
-  }
-  params.mainPort.send({
-    'type': 'taskCompleted',
-    'workerPort': taskPort.sendPort,
-  });
-
-  taskPort.listen((filePath) async {
-    //print("fp: $filePath");
-    if (filePath == "END") {
-      // 清理资源
-      await conn?.close();
-      webSocketChannel?.sink.close(); // 关闭 WebSocket 连接
-
-      logger.debug('数据库连接和 WebSocket 连接已关闭');
-      logger.flushLogs(params.mainPort);
-      return;
-    }
+  // 单线程顺序处理文件
+  int processed = 0;
+  for (final filePath in fileList) {
     try {
       await processFile(
         filePath,
         conn!,
-        params.settings,
+        _Settings,
         logger,
-        webSocketChannel!, // 传递 WebSocket 连接
-        broadcastStream,
+        WebSocketChannel.connect(Uri.parse('ws://localhost:$_webSocketPort')),
+        const Stream.empty(), // 这里可根据实际情况传递正确的 stream
       );
-
-      params.mainPort.send({
-        'type': 'taskCompleted',
-        'workerPort': taskPort.sendPort,
-      });
-      logger.debug('文件处理完成: $filePath');
-      logger.flushLogs(params.mainPort);
+      processed++;
+      progressNotifier.value =
+          ((processed * 95 ~/ fileList.length) + 5).round();
     } catch (e) {
       logger.error('文件处理失败: $filePath');
       print("文件处理失败: $filePath $e");
-      logger.flushLogs(params.mainPort);
     }
-  });
-}
-
-// 主函数
-Future<void> processFiles(
-    BuildContext context, ValueNotifier<int> progressNotifier) async {
-  print("开始处理文件");
-
-  Process? pythonProcess = await _initialize();
-
-  progressNotifier.value = 0; //处理进度：0-100
-
-  //连接状态检查
-  MySqlConnection? conn = await checkDatabaseConnection(context, _Settings['dbParams']);
-
-  //await conn.close();
-  final startTime = DateTime.now();
-
-  // 递归遍历文件夹，列表存储在fileList
-  final fileList = <String>[];
-  await _traverseDirectory(_Settings['sourceDataPath'], conn, fileList, _Settings['name'], _Settings['Platform_id'],_Settings['DeviceTableName']);
-  progressNotifier.value = 1;
-
-  final processedFilesNotifier = ValueNotifier(0); //已处理的文件数
-
-  await processFilesInParallel(fileList,_Settings, progressNotifier, processedFilesNotifier);
+  }
 
   try {
     await conn?.close();
   } catch (_) {}
   logger.debug('数据库连接关闭');
-
   final endTime = DateTime.now();
   final runTime = endTime.difference(startTime).inMilliseconds;
   print('所有文件处理完成，程序运行时间: ${runTime / 1000.0}秒 处理文件总数: ${fileList.length}');
-
-  logger
-      .info('所有文件处理完成，程序运行时间: ${runTime / 1000.0}秒 处理文件总数: ${fileList.length}');
-
+  logger.info(
+      '所有文件处理完成，程序运行时间: ${runTime / 1000.0}秒 处理文件总数: ${fileList.length}');
   progressNotifier.value = 0;
   logger.writeLogsToFile();
-
   if (pythonProcess != null) {
     Future.delayed(Duration(seconds: 5), () {
       print("Python  进程已关闭");
-      pythonProcess!.kill(); // 异步关闭进程
+      pythonProcess.kill();
     });
   }
 }
@@ -492,11 +346,11 @@ Future<void> _traverseDirectory(
       //logger.debug('执行数据库查询: ${checkSql} 参数: [$dtStr, $name, $MSTStr, $platformId]');
       final checkResult =
           await conn?.query(checkSql, [dtStr, name, MST, platformId]);
-      final exists = checkResult?.first?[0] == 1; // 确保返回值是布尔类型
+      final exists = checkResult!.first[0] == 1; // 确保返回值是布尔类型
       //print('$fileName 是否重复:$exists');
       logger.debug('$fileName 是否重复:$exists');
-      return exists; // 显式转换为 bool
-      //return false;
+      //return exists; // 显式转换为 bool
+      return false;
     } catch (e, stackTrace) {
       logger.error('查重失败: $e', stackTrace);
       return true;
@@ -529,85 +383,13 @@ Future<void> _traverseDirectory(
   }
 }
 
-// Logger 类，完成日志相关功能
-class Logger {
-  List<String> _logCache = [];
-  bool _isDebug = true; // 默认为 true
-  final _writeLock = Mutex();
-
-  // 修改构造函数参数名
-  Logger({bool? isDebug}) {
-    _isDebug = isDebug ?? _Settings['enableDebugLogging'] ?? true;
-  }
-  // 基本日志写入函数
-  void _log(String level, String message, [StackTrace? stackTrace]) {
-    final logEntry =
-        '\n[${DateTime.now().toIso8601String()}] $level: $message${stackTrace != null ? '\n$stackTrace' : ''}';
-    _logCache.add(logEntry);
-  }
-
-  // 不同级别的日志写入
-  void info(String message) => _log('INFO', message);
-  // void info(String message) {
-  //   _log('INFO', message);
-  //   print("info: $message");
-  // }
-
-  void warning(String message) => _log('WARNING', message);
-  void error(String message, [StackTrace? stackTrace]) =>
-      _log('ERROR', message, stackTrace);
-  void debug(String message) {
-    if (_Settings['enableDebugLogging'] != null) {
-      if (_Settings['enableDebugLogging'] == true) {
-        _log('DEBUG', message);
-      }
-    } else if (_isDebug) {
-      _log('DEBUG', message);
-    }
-  }
-
-  void fatal(String message, [StackTrace? stackTrace]) =>
-      _log('FATAL', message, stackTrace);
-
-  // 新增: 将日志信息发送到主线程
-  void flushLogs(SendPort sendPort) {
-    if (_logCache.isNotEmpty) {
-      sendPort.send({'type': 'log', 'data': _logCache});
-      _logCache.clear();
-    }
-  }
-
-  void syncState(List<String> other) {
-    _logCache.addAll(other);
-  }
-
-  void writeLogsToFile() async {
-    final file = File('process_log.txt');
-
-    // 创建副本并原子化清空（关键修复）
-    final logsToWrite = _logCache.toList();
-    //print("logsToWrite: $logsToWrite");
-    _logCache.clear(); // 立即清空原列表
-
-    // 使用同步写入避免异步间隙（优化点）
-    final sink = file.openWrite(mode: FileMode.append);
-    await _writeLock.acquire();
-    try {
-      for (final logEntry in logsToWrite) {
-        sink.write(logEntry); // 同步写入操作
-      }
-    } finally {
-      await sink.close(); // 异步关闭文件流
-    }
-  }
-}
-
 // 新增数据库连接检查函数
 Future<MySqlConnection?> checkDatabaseConnection(
     BuildContext context, ConnectionSettings dbParams) async {
   MySqlConnection? conn;
   try {
-    conn = await MySqlConnection.connect(dbParams).timeout(Duration(seconds: 10));
+    conn =
+        await MySqlConnection.connect(dbParams).timeout(Duration(seconds: 10));
     await conn.query('SELECT 1');
     logger.debug('数据库连接成功');
     return conn;
