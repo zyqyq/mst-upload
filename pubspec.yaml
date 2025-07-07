@@ -21,6 +21,7 @@ dependencies:
   uuid: ^3.0.6
   package_info_plus: ^8.3.0
   semaphore: ^0.2.1
+  webview_flutter: ^4.7.0
 
 flutter:
   uses-material-design: true
