@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:io';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'dart:convert';
 
 class DemoPage extends StatefulWidget {
   final VoidCallback? onEnter;
@@ -13,6 +14,9 @@ class DemoPage extends StatefulWidget {
 }
 
 class _DemoPageState extends State<DemoPage> {
+  // 定义public目录路径为常量，便于统一管理和修改
+  static const String PUBLIC_DIR_PATH = '/Users/zyqyq/Program/app-webview/app-webview/public';
+  
   final TextEditingController _controller = TextEditingController(
     text:
         '/Users/zyqyq/Program/数据集/L1B/202408/20240801/OQZQB_MSTR01_PSPP_L1B_30M_20240801110000_V01.00_M.TXT',
@@ -70,10 +74,9 @@ class _DemoPageState extends State<DemoPage> {
     final srcFile = File(srcPath);
     if (!await srcFile.exists()) return;
     final fileName = srcFile.uri.pathSegments.last;
-    final destDir =
-        Directory('/Users/zyqyq/Program/app-webview/app-webview/public');
+    final destDir = Directory(PUBLIC_DIR_PATH); // 使用常量代替硬编码路径
     if (!await destDir.exists()) await destDir.create(recursive: true);
-    final destPath = '${destDir.path}/$fileName';
+    final destPath = '$PUBLIC_DIR_PATH/$fileName'; // 使用常量代替硬编码路径
     await srcFile.copy(destPath);
     _copiedFiles.add(destPath);
     print('文件已拷贝: $srcPath');
@@ -104,9 +107,9 @@ class _DemoPageState extends State<DemoPage> {
     String timeStr = parts[5];
     String mstRaw = parts[7].toUpperCase(); // M 或 ST
     String mst = '';
-    if (mstRaw == 'M') {
+    if (mstRaw == 'M.TXT') {
       mst = 'M';
-    } else if (mstRaw == 'ST') {
+    } else if (mstRaw == 'ST.TXT') {
       mst = 'ST';
     } else {
       mst = mstRaw;
@@ -118,6 +121,47 @@ class _DemoPageState extends State<DemoPage> {
           '${timeStr.substring(8, 10)}:${timeStr.substring(10, 12)}:${timeStr.substring(12, 14)}';
     }
     return '类型: $type $mst    时间: $timeFmt';
+  }
+
+  Future<void> _handleProcessFile() async {
+    try {
+      // 1. 读取 settings.json
+      final settingsFile = File('settings.json');
+      final settingsContent = await settingsFile.readAsString();
+      final settings = json.decode(settingsContent);
+      final pythonPath = settings['pythonInterpreterPath'];
+      final scriptPath = settings['optimizationProgramPath'];
+      // 2. 计算新文件名
+      final srcPath = _controller.text;
+      final fileName = File(srcPath).uri.pathSegments.last;
+      final dotIdx = fileName.lastIndexOf('.');
+      final processedName = dotIdx > 0
+          ? fileName.substring(0, dotIdx) +
+              '_processed' +
+              fileName.substring(dotIdx)
+          : fileName + '_processed';
+      final destPath = '$PUBLIC_DIR_PATH/$processedName'; // 使用常量代替硬编码路径
+      final relativePath = '/$processedName';
+      // 3. 调用python脚本
+      final result =
+          await Process.run(pythonPath, [scriptPath, srcPath, destPath]); // 使用常量代替硬编码路径
+      if (result.stdout != null && result.stdout.toString().isNotEmpty) {
+        print('stdout: ${result.stdout}');
+      }
+      if (result.stderr != null && result.stderr.toString().isNotEmpty) {
+        print('stderr: ${result.stderr}');
+      }
+      // 4. 记录新文件，通知web
+      _copiedFiles.add(destPath);
+      _pendingRelativePath = relativePath;
+      _webViewController.runJavaScript('''
+        if (window.app && typeof window.app.setFilepath === "function") {
+          window.app.setFilepath('$relativePath');
+        }
+      ''');
+    } catch (e) {
+      print('处理文件失败: $e');
+    }
   }
 
   @override
@@ -154,15 +198,26 @@ class _DemoPageState extends State<DemoPage> {
                 SizedBox(width: 24),
                 Expanded(
                   flex: 1,
-                  child: TextField(
-                    controller: TextEditingController(text: _parsedInfo),
-                    readOnly: true,
-                    maxLines: 1,
-                    style: TextStyle(fontSize: 16),
-                    decoration: InputDecoration(
-                      labelText: '文件信息',
-                      border: OutlineInputBorder(),
-                    ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: TextEditingController(text: _parsedInfo),
+                          readOnly: true,
+                          maxLines: 1,
+                          style: TextStyle(fontSize: 16),
+                          decoration: InputDecoration(
+                            labelText: '文件信息',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: 12),
+                      ElevatedButton(
+                        onPressed: _handleProcessFile,
+                        child: Text('处理'),
+                      ),
+                    ],
                   ),
                 ),
               ],

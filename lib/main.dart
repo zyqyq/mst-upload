@@ -52,17 +52,29 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   int _selectedIndex = 0;
   late final GlobalKey<SettingsPageState> _settingsPageKey;
-  late final ValueNotifier<int> _countdownNotifier; // 修改: 使用 ValueNotifier<int>
-  late final ValueNotifier<int>
-      _progressNotifier; // 新增: 使用 ValueNotifier<int> 来跟踪进度
-  late final List<Widget> _pages;
+  late final ValueNotifier<int> _countdownNotifier;
+  late final ValueNotifier<int> _progressNotifier;
   bool _isPaused = false;
-  Timer? _syncTimer; // 添加: 定义 Timer 变量来存储当前的定时器实例
+  Timer? _syncTimer;
   late double _navWidthRatio;
   final double _defaultNavWidthRatio = 0.25;
   final double _demoNavWidthRatio = 0.125;
   final Size _defaultWindowSize = const Size(900, 600);
-  final Size _demoWindowSize = const Size(1800, 1200);
+  final Size _demoWindowSize = const Size(1350, 900);
+
+  List<Widget> get _pages => [
+        TransferPage(
+          countdownNotifier: _countdownNotifier,
+          onTogglePause: _handleTogglePause,
+        ),
+        DemoPage(
+          key: UniqueKey(), // 新增: 强制每次重建 DemoPage 实例
+          onEnter: _onDemoEnter,
+          onExit: _onDemoExit,
+        ),
+        HistoryPage(),
+        SettingsPage(key: _settingsPageKey, onSettingsSaved: _onSettingsSaved),
+      ];
 
   @override
   void initState() {
@@ -71,18 +83,6 @@ class _MyHomePageState extends State<MyHomePage> {
     _countdownNotifier = ValueNotifier<int>(0);
     _progressNotifier = ValueNotifier<int>(0);
     _navWidthRatio = _defaultNavWidthRatio;
-    _pages = [
-      TransferPage(
-        countdownNotifier: _countdownNotifier,
-        onTogglePause: _handleTogglePause,
-      ),
-      HistoryPage(),
-      SettingsPage(key: _settingsPageKey, onSettingsSaved: _onSettingsSaved),
-      DemoPage(
-        onEnter: _onDemoEnter,
-        onExit: _onDemoExit,
-      ),
-    ];
     _startSyncTimer();
   }
 
@@ -186,15 +186,12 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   void _handlePageSwitch(int newIndex) {
-    if (_selectedIndex == 3 && newIndex != 3) {
-      // 离开 DemoPage
-      final demo = _pages[3] as DemoPage;
-      demo.onExit?.call();
+    // 只处理窗口自适应逻辑，不再直接调用 DemoPage 的 onEnter/onExit
+    if (_selectedIndex == 1 && newIndex != 1) {
+      _onDemoExit();
     }
-    if (newIndex == 3 && _selectedIndex != 3) {
-      // 进入 DemoPage
-      final demo = _pages[3] as DemoPage;
-      demo.onEnter?.call();
+    if (newIndex == 1 && _selectedIndex != 1) {
+      _onDemoEnter();
     }
     setState(() {
       _selectedIndex = newIndex;
@@ -284,6 +281,11 @@ class _MyHomePageState extends State<MyHomePage> {
                                 label: Text('传输'),
                               ),
                               NavigationRailDestination(
+                                icon: Icon(Icons.slideshow),
+                                selectedIcon: Icon(Icons.slideshow),
+                                label: Text('演示'), // "演示"调整到第二项
+                              ),
+                              NavigationRailDestination(
                                 icon: Icon(Icons.history),
                                 selectedIcon: Icon(Icons.history),
                                 label: Text('历史'),
@@ -292,11 +294,6 @@ class _MyHomePageState extends State<MyHomePage> {
                                 icon: Icon(Icons.settings),
                                 selectedIcon: Icon(Icons.settings),
                                 label: Text('设置'),
-                              ),
-                              NavigationRailDestination(
-                                icon: Icon(Icons.slideshow),
-                                selectedIcon: Icon(Icons.slideshow),
-                                label: Text('演示'), // 新增: "演示"
                               ),
                             ],
                           ),
