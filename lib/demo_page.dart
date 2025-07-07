@@ -15,8 +15,9 @@ class DemoPage extends StatefulWidget {
 
 class _DemoPageState extends State<DemoPage> {
   // 定义public目录路径为常量，便于统一管理和修改
-  static const String PUBLIC_DIR_PATH = '/Users/zyqyq/Program/app-webview/app-webview/public';
-  
+  static const String PUBLIC_DIR_PATH =
+      '/Users/zyqyq/Program/app-webview/app-webview/public';
+
   final TextEditingController _controller = TextEditingController(
     text:
         '/Users/zyqyq/Program/数据集/L1B/202408/20240801/OQZQB_MSTR01_PSPP_L1B_30M_20240801110000_V01.00_M.TXT',
@@ -25,35 +26,46 @@ class _DemoPageState extends State<DemoPage> {
 
   // 记录拷贝到public的文件绝对路径
   final List<String> _copiedFiles = [];
-  late final WebViewController _webViewController;
+  WebViewController? _webViewController;
   String? _pendingRelativePath;
+  bool _isWebViewInitialized = false;
 
   @override
   void initState() {
     super.initState();
     widget.onEnter?.call();
     _parsedInfo = _parseFileName(_controller.text.split('/').last);
-    _webViewController = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onPageFinished: (url) {
-            if (_pendingRelativePath != null) {
-              _webViewController.runJavaScript(
-                  "window.app && window.app.setFilepath('${_pendingRelativePath!}')");
-              _pendingRelativePath = null;
-            }
-          },
-        ),
-      )
-      ..loadRequest(Uri.parse('http://127.0.0.1:8081'));
+    _initializeWebView();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _handleFileCopyAndNotify(_controller.text);
     });
   }
 
+  void _initializeWebView() {
+    if (_webViewController == null) {
+      _webViewController = WebViewController()
+        ..setJavaScriptMode(JavaScriptMode.unrestricted)
+        ..setNavigationDelegate(
+          NavigationDelegate(
+            onPageFinished: (url) {
+              setState(() {
+                _isWebViewInitialized = true;
+              });
+              if (_pendingRelativePath != null && _webViewController != null) {
+                _webViewController!.runJavaScript(
+                    "window.app && window.app.setFilepath('${_pendingRelativePath!}')");
+                _pendingRelativePath = null;
+              }
+            },
+          ),
+        )
+        ..loadRequest(Uri.parse('http://127.0.0.1:8081'));
+    }
+  }
+
   @override
   void dispose() {
+    _webViewController = null;
     widget.onExit?.call();
     _deleteCopiedFiles();
     super.dispose();
@@ -74,20 +86,21 @@ class _DemoPageState extends State<DemoPage> {
     final srcFile = File(srcPath);
     if (!await srcFile.exists()) return;
     final fileName = srcFile.uri.pathSegments.last;
-    final destDir = Directory(PUBLIC_DIR_PATH); // 使用常量代替硬编码路径
+    final destDir = Directory(PUBLIC_DIR_PATH);
     if (!await destDir.exists()) await destDir.create(recursive: true);
-    final destPath = '$PUBLIC_DIR_PATH/$fileName'; // 使用常量代替硬编码路径
+    final destPath = '$PUBLIC_DIR_PATH/$fileName';
     await srcFile.copy(destPath);
     _copiedFiles.add(destPath);
     print('文件已拷贝: $srcPath');
-    final relativePath = '/$fileName'; // public下的相对路径
+    final relativePath = '/$fileName';
     _pendingRelativePath = relativePath;
-    // 若页面已加载完成可立即注入，否则等 onPageFinished
-    _webViewController.runJavaScript('''
-      if (window.app && typeof window.app.setFilepath === "function") {
-        window.app.setFilepath('$relativePath');
-      }
-    ''');
+    if (_webViewController != null) {
+      _webViewController!.runJavaScript('''
+        if (window.app && typeof window.app.setFilepath === "function") {
+          window.app.setFilepath('$relativePath');
+        }
+      ''');
+    }
   }
 
   Future<void> _deleteCopiedFiles() async {
@@ -125,13 +138,11 @@ class _DemoPageState extends State<DemoPage> {
 
   Future<void> _handleProcessFile() async {
     try {
-      // 1. 读取 settings.json
       final settingsFile = File('settings.json');
       final settingsContent = await settingsFile.readAsString();
       final settings = json.decode(settingsContent);
       final pythonPath = settings['pythonInterpreterPath'];
       final scriptPath = settings['optimizationProgramPath'];
-      // 2. 计算新文件名
       final srcPath = _controller.text;
       final fileName = File(srcPath).uri.pathSegments.last;
       final dotIdx = fileName.lastIndexOf('.');
@@ -140,25 +151,25 @@ class _DemoPageState extends State<DemoPage> {
               '_processed' +
               fileName.substring(dotIdx)
           : fileName + '_processed';
-      final destPath = '$PUBLIC_DIR_PATH/$processedName'; // 使用常量代替硬编码路径
+      final destPath = '$PUBLIC_DIR_PATH/$processedName';
       final relativePath = '/$processedName';
-      // 3. 调用python脚本
       final result =
-          await Process.run(pythonPath, [scriptPath, srcPath, destPath]); // 使用常量代替硬编码路径
+          await Process.run(pythonPath, [scriptPath, srcPath, destPath]);
       if (result.stdout != null && result.stdout.toString().isNotEmpty) {
         print('stdout: ${result.stdout}');
       }
       if (result.stderr != null && result.stderr.toString().isNotEmpty) {
         print('stderr: ${result.stderr}');
       }
-      // 4. 记录新文件，通知web
       _copiedFiles.add(destPath);
       _pendingRelativePath = relativePath;
-      _webViewController.runJavaScript('''
-        if (window.app && typeof window.app.setFilepath === "function") {
-          window.app.setFilepath('$relativePath');
-        }
-      ''');
+      if (_webViewController != null) {
+        _webViewController!.runJavaScript('''
+          if (window.app && typeof window.app.setFilepath === "function") {
+            window.app.setFilepath('$relativePath');
+          }
+        ''');
+      }
     } catch (e) {
       print('处理文件失败: $e');
     }
@@ -227,9 +238,13 @@ class _DemoPageState extends State<DemoPage> {
               child: Card(
                 child: Padding(
                   padding: const EdgeInsets.all(8.0),
-                  child: WebViewWidget(
-                    controller: _webViewController,
-                  ),
+                  child: _webViewController != null
+                      ? WebViewWidget(
+                          controller: _webViewController!,
+                        )
+                      : Center(
+                          child: CircularProgressIndicator(),
+                        ),
                 ),
               ),
             ),
