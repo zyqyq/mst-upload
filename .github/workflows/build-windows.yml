@@ -19,13 +19,15 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '16' # 使用 Node.js 16
+          node-version: '10' # 使用 Node.js 16
 
       # 构建 Vue 应用
       - name: Build Vue application
         run: |
           cd app-webview
           npm install
+          npm install sass-loader@10.1.1 --save-dev
+          npm install echarts@5.0.0
           npm run build
     
       # 设置 Flutter 环境
