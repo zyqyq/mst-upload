@@ -16,19 +16,19 @@ jobs:
         uses: actions/checkout@v4
 
       # 设置 Node.js 环境，用于构建 Vue 应用
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '10' # 使用 Node.js 16
+      # - name: Set up Node.js
+      #   uses: actions/setup-node@v3
+      #   with:
+      #     node-version: '10' # 使用 Node.js 16
 
       # 构建 Vue 应用
-      - name: Build Vue application
-        run: |
-          cd app-webview
-          npm install
-          npm install sass-loader@10.1.1 --save-dev
-          npm install echarts@5.0.0
-          npm run build
+      # - name: Build Vue application
+      #   run: |
+      #     cd app-webview
+      #     npm install
+      #     npm install sass-loader@10.1.1 --save-dev
+      #     npm install echarts@5.0.0
+      #     npm run build
     
       # 设置 Flutter 环境
       - name: Set up Flutter
