@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:io';
@@ -29,11 +31,12 @@ class _DemoPageState extends State<DemoPage> {
   // 是否处于调试模式
   bool _isDebugMode = false;
 
-  final TextEditingController _controller = TextEditingController(
-    text:
-        '/Users/zyqyq/Program/数据集/L1B/202408/20240801/OQZQB_MSTR01_PSPP_L1B_30M_20240801110000_V01.00_M.TXT',
-  );
+  final TextEditingController _controller = TextEditingController();
   String _parsedInfo = '';
+  // 用于监听输入框变化
+  late final VoidCallback _textListener;
+  // 标记是否为手动输入且路径存在且解析正常
+  bool _showConfirmForManual = false;
 
   // 记录拷贝到public的文件绝对路径
   final List<String> _copiedFiles = [];
@@ -45,11 +48,39 @@ class _DemoPageState extends State<DemoPage> {
   void initState() {
     super.initState();
     widget.onEnter?.call();
+    _textListener = () async {
+      final inputPath = _controller.text;
+      final file = File(inputPath);
+      final exists = await file.exists();
+      final parsed = _parseFileName(inputPath.split('/').last);
+      setState(() {
+        if (exists) {
+          _parsedInfo = parsed;
+        }
+        else{
+          _parsedInfo = '路径不存在';
+        }
+        // 只有手动输入、路径存在且解析正常时，显示“确认”
+        _showConfirmForManual =
+            exists && parsed != '无法解析' && parsed != '仅能解析L1B类型文件';
+      });
+    };
+    _controller.addListener(_textListener);
     _setupEnvironment().then((_) {
+      // 仅在本地调试且未发布时预置路径
+      if (!kDebugMode) {
+        _controller.text = '';
+      } else {
+        _controller.text =
+            '/Users/zyqyq/Program/数据集/L1B/202408/20240801/OQZQB_MSTR01_PSPP_L1B_30M_20240801110000_V01.00_M.TXT';
+      }
+      // 预置路径后自动解析
       _parsedInfo = _parseFileName(_controller.text.split('/').last);
       _initializeWebView();
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _handleFileCopyAndNotify(_controller.text);
+        if (_controller.text.isNotEmpty) {
+          _handleFileCopyAndNotify(_controller.text);
+        }
       });
     });
   }
@@ -149,6 +180,7 @@ class _DemoPageState extends State<DemoPage> {
 
   @override
   void dispose() {
+    _controller.removeListener(_textListener);
     _webViewController = null;
     widget.onExit?.call();
     _deleteCopiedFiles();
@@ -165,6 +197,7 @@ class _DemoPageState extends State<DemoPage> {
       setState(() {
         _controller.text = result.files.single.path!;
         _parsedInfo = _parseFileName(result.files.single.name);
+        _showConfirmForManual = false; // 浏览方式不显示确认
       });
       await _handleFileCopyAndNotify(_controller.text);
     }
@@ -212,6 +245,9 @@ class _DemoPageState extends State<DemoPage> {
     final parts = fileName.split('_');
     if (parts.length < 8) return '无法解析';
     String type = parts[3].toUpperCase(); // L1B/L2
+    if (type != 'L1B') {
+      return '仅能解析L1B类型文件';
+    }
     String timeStr = parts[5];
     String mstRaw = parts[7].toUpperCase(); // M 或 ST
     String mst = '';
@@ -232,6 +268,25 @@ class _DemoPageState extends State<DemoPage> {
   }
 
   Future<void> _handleProcessFile() async {
+    // 检查解析结果
+    if (_parsedInfo == '无法解析' || _parsedInfo == '仅能解析L1B类型文件') {
+      if (context.mounted) {
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: Text('提示'),
+            content: Text(_parsedInfo),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: Text('确定'),
+              ),
+            ],
+          ),
+        );
+      }
+      return;
+    }
     try {
       final settingsFile = File('settings.json');
       final settingsContent = await settingsFile.readAsString();
@@ -329,10 +384,21 @@ class _DemoPageState extends State<DemoPage> {
                         ),
                       ),
                       SizedBox(width: 12),
-                      ElevatedButton(
-                        onPressed: _handleProcessFile,
-                        child: Text('处理'),
-                      ),
+                      _showConfirmForManual
+                          ? ElevatedButton(
+                              onPressed: () async {
+                                await _handleFileCopyAndNotify(
+                                    _controller.text);
+                                setState(() {
+                                  _showConfirmForManual = false;
+                                });
+                              },
+                              child: Text('确认'),
+                            )
+                          : ElevatedButton(
+                              onPressed: _handleProcessFile,
+                              child: Text('处理'),
+                            ),
                     ],
                   ),
                 ),

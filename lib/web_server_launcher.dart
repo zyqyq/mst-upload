@@ -27,14 +27,18 @@ class WebServerLauncher {
 
         // 监听标准输出
         _serverProcess!.stdout.transform(utf8.decoder).listen((data) {
-          print('Web server output: $data');
+          // 可选：如需调试可打开
+          // print('Web server output: $data');
         });
 
         // 监听错误输出
         _serverProcess!.stderr.transform(utf8.decoder).listen((data) {
-          print('Web server error: $data');
           if (data.contains('Address already in use')) {
+            // 不输出端口占用错误
             _port++;
+          } else {
+            // 其他错误可选输出
+            // print('Web server error: $data');
           }
         });
 
@@ -50,12 +54,12 @@ class WebServerLauncher {
           _isRunning = true;
           print('Web server started on port $_port');
         } catch (e) {
-          print('Failed to connect to web server: $e');
+          // 不输出端口占用相关的连接失败
           await _serverProcess?.kill();
           _port++;
         }
       } catch (e) {
-        print('Failed to start web server: $e');
+        // 不输出端口占用相关的启动失败
         _port++;
       }
     }
