@@ -19,6 +19,8 @@ class DemoPage extends StatefulWidget {
 }
 
 class _DemoPageState extends State<DemoPage> {
+  // 处理遮罩状态
+  bool _isProcessing = false;
   // 当前应用路径
   static final String _appPath = path.dirname(Platform.resolvedExecutable);
   // 根据调试模式和设置动态确定的公共目录路径
@@ -291,6 +293,9 @@ class _DemoPageState extends State<DemoPage> {
   }
 
   Future<void> _handleProcessFile() async {
+    setState(() {
+      _isProcessing = true;
+    });
     // 检查解析结果
     if (_parsedInfo == '无法解析' || _parsedInfo == '仅能解析L1B类型文件') {
       if (context.mounted) {
@@ -308,6 +313,9 @@ class _DemoPageState extends State<DemoPage> {
           ),
         );
       }
+      setState(() {
+        _isProcessing = false;
+      });
       return;
     }
 
@@ -376,6 +384,11 @@ class _DemoPageState extends State<DemoPage> {
       }
     } catch (e) {
       print('处理文件失败: $e');
+    }
+    if (mounted) {
+      setState(() {
+        _isProcessing = false;
+      });
     }
   }
 
@@ -457,24 +470,54 @@ class _DemoPageState extends State<DemoPage> {
               child: Card(
                 child: Padding(
                   padding: const EdgeInsets.all(8.0),
-                  child: _webViewController != null
-                      ? Builder(
-                          builder: (context) {
-                            try {
-                              return WebViewWidget(
-                                controller: _webViewController!,
-                              );
-                            } catch (e) {
-                              print('WebView小部件错误: $e');
-                              return Center(
-                                child: Text('WebView加载失败，请重试'),
-                              );
-                            }
-                          },
-                        )
-                      : Center(
-                          child: CircularProgressIndicator(),
+                  child: Stack(
+                    children: [
+                      _webViewController != null
+                          ? Builder(
+                              builder: (context) {
+                                try {
+                                  return WebViewWidget(
+                                    controller: _webViewController!,
+                                  );
+                                } catch (e) {
+                                  print('WebView小部件错误: $e');
+                                  return Center(
+                                    child: Text('WebView加载失败，请重试'),
+                                  );
+                                }
+                              },
+                            )
+                          : Center(
+                              child: CircularProgressIndicator(),
+                            ),
+                      if (_isProcessing)
+                        Container(
+                          color: Colors.black.withOpacity(0.4),
+                          child: Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                SizedBox(
+                                  width: 48,
+                                  height: 48,
+                                  child: CircularProgressIndicator(
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                        Colors.white),
+                                    strokeWidth: 5,
+                                  ),
+                                ),
+                                SizedBox(height: 16),
+                                Text(
+                                  '正在处理...请稍候',
+                                  style: TextStyle(
+                                      color: Colors.white, fontSize: 18),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
+                    ],
+                  ),
                 ),
               ),
             ),
