@@ -14,8 +14,20 @@ jobs:
       # 检出代码
       - name: Checkout code
         uses: actions/checkout@v4
-    
 
+      # 设置 Node.js 环境，用于构建 Vue 应用
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16' # 使用 Node.js 16
+
+      # 构建 Vue 应用
+      - name: Build Vue application
+        run: |
+          cd app-webview
+          npm install
+          npm run build
+    
       # 设置 Flutter 环境
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -58,6 +70,12 @@ jobs:
           Copy-Item lib/web-server.py build/windows/x64/runner/Release/lib/
           Copy-Item lib/libfix_for_flutter.py build/windows/x64/runner/Release/lib/
           Copy-Item lib/change_for_flutter.py build/windows/x64/runner/Release/lib/
+          
+          # 创建 app-webview 目录结构
+          New-Item -Path build/windows/x64/runner/Release/data/app-webview/dist -ItemType Directory -Force
+          
+          # 拷贝 Vue 应用构建产物到 Release 目录
+          Copy-Item -Recurse app-webview/dist/* build/windows/x64/runner/Release/data/app-webview/dist/
 
       # 上传构建产物
       - name: Upload Windows build artifact
