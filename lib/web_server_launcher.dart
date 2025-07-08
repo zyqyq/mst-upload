@@ -76,8 +76,26 @@ class WebServerLauncher {
     if (_serverProcess != null) {
       print('Stopping web server on port $_port');
       _isRunning = false;
-      await _serverProcess?.kill();
-      _serverProcess = null;
+
+      try {
+        // 更安全地关闭进程
+        final killResult = await _serverProcess?.kill();
+        // 如果进程未正确终止，强制终止
+        if (killResult != true) {
+          try {
+            // 在非Windows系统上使用SIGKILL信号
+            if (!Platform.isWindows) {
+              await Process.run('kill', ['-9', '${_serverProcess!.pid}']);
+            }
+          } catch (e) {
+            print('强制终止进程失败: $e');
+          }
+        }
+      } catch (e) {
+        print('终止进程出错: $e');
+      } finally {
+        _serverProcess = null;
+      }
     }
   }
 

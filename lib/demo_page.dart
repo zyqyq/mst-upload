@@ -56,8 +56,7 @@ class _DemoPageState extends State<DemoPage> {
       setState(() {
         if (exists) {
           _parsedInfo = parsed;
-        }
-        else{
+        } else {
           _parsedInfo = '路径不存在';
         }
         // 只有手动输入、路径存在且解析正常时，显示“确认”
@@ -148,15 +147,22 @@ class _DemoPageState extends State<DemoPage> {
   }
 
   void _initializeWebView() {
-    if (_webViewController == null) {
+    // 确保WebView只初始化一次
+    if (_webViewController != null) {
+      return;
+    }
+
+    try {
       _webViewController = WebViewController()
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
         ..setNavigationDelegate(
           NavigationDelegate(
             onPageFinished: (url) {
-              setState(() {
-                _isWebViewInitialized = true;
-              });
+              if (mounted) {
+                setState(() {
+                  _isWebViewInitialized = true;
+                });
+              }
               if (_pendingRelativePath != null && _webViewController != null) {
                 _webViewController!.runJavaScript(
                     "window.app && window.app.setFilepath('${_pendingRelativePath!}')");
@@ -175,18 +181,35 @@ class _DemoPageState extends State<DemoPage> {
         // 否则使用开发服务器
         _webViewController!.loadRequest(Uri.parse('http://127.0.0.1:8081'));
       }
+    } catch (e) {
+      print('WebView初始化错误: $e');
     }
   }
 
   @override
   void dispose() {
     _controller.removeListener(_textListener);
-    _webViewController = null;
+
+    // 先清理WebView资源
+    if (_webViewController != null) {
+      try {
+        // 取消WebView页面加载，防止回调延迟执行
+        _webViewController?.setNavigationDelegate(NavigationDelegate());
+      } catch (e) {
+        print('清理WebView错误: $e');
+      }
+      _webViewController = null;
+    }
+
     widget.onExit?.call();
     _deleteCopiedFiles();
 
     // 关闭Web服务器
-    _webServerLauncher?.stopServer();
+    try {
+      _webServerLauncher?.stopServer();
+    } catch (e) {
+      print('关闭Web服务器错误: $e');
+    }
 
     super.dispose();
   }
@@ -287,6 +310,7 @@ class _DemoPageState extends State<DemoPage> {
       }
       return;
     }
+
     try {
       final settingsFile = File('settings.json');
       final settingsContent = await settingsFile.readAsString();
@@ -318,8 +342,28 @@ class _DemoPageState extends State<DemoPage> {
       if (result.stderr != null && result.stderr.toString().isNotEmpty) {
         print('stderr: ${result.stderr}');
       }
+
       _copiedFiles.add(destPath);
       _pendingRelativePath = relativePath;
+
+      // 读取处理后的文件第11行
+      final file = File(destPath);
+      if (await file.exists()) {
+        final lines = await file.readAsLines();
+        if (lines.length >= 11) {
+          final line11 = lines[10]; // 第11行索引为10
+          final regex = RegExp(
+              r'#quantitative indicators:\s*(\d+\.?\d*)\s+(\d+\.?\d*)\s+(\d+\.?\d*)\s+(\d+\.?\d*)\s+(\d+\.?\d*)\s+(\d+\.?\d*)');
+          final match = regex.firstMatch(line11);
+          if (match != null && match.groupCount >= 6) {
+            final a = match.group(5); // 倒数第二个数
+            final b = match.group(6); // 最后一个数
+            setState(() {
+              _parsedInfo = '方差对称度: $a -> $b';
+            });
+          }
+        }
+      }
 
       if (_webViewController != null && _isWebViewInitialized) {
         _webViewController!.runJavaScript('''
@@ -384,21 +428,25 @@ class _DemoPageState extends State<DemoPage> {
                         ),
                       ),
                       SizedBox(width: 12),
-                      _showConfirmForManual
-                          ? ElevatedButton(
-                              onPressed: () async {
+                      ElevatedButton(
+                        onPressed: _showConfirmForManual
+                            ? () async {
                                 await _handleFileCopyAndNotify(
                                     _controller.text);
-                                setState(() {
-                                  _showConfirmForManual = false;
-                                });
-                              },
-                              child: Text('确认'),
-                            )
-                          : ElevatedButton(
-                              onPressed: _handleProcessFile,
-                              child: Text('处理'),
-                            ),
+                                if (mounted) {
+                                  setState(() {
+                                    // _showConfirmForManual = false;
+                                  });
+                                }
+                              }
+                            : null,
+                        child: Text('原始'),
+                      ),
+                      SizedBox(width: 12),
+                      ElevatedButton(
+                        onPressed: _handleProcessFile,
+                        child: Text('处理'),
+                      ),
                     ],
                   ),
                 ),
@@ -410,8 +458,19 @@ class _DemoPageState extends State<DemoPage> {
                 child: Padding(
                   padding: const EdgeInsets.all(8.0),
                   child: _webViewController != null
-                      ? WebViewWidget(
-                          controller: _webViewController!,
+                      ? Builder(
+                          builder: (context) {
+                            try {
+                              return WebViewWidget(
+                                controller: _webViewController!,
+                              );
+                            } catch (e) {
+                              print('WebView小部件错误: $e');
+                              return Center(
+                                child: Text('WebView加载失败，请重试'),
+                              );
+                            }
+                          },
                         )
                       : Center(
                           child: CircularProgressIndicator(),
