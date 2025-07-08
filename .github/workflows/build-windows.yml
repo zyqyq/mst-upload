@@ -74,10 +74,10 @@ jobs:
           Copy-Item lib/change_for_flutter.py build/windows/x64/runner/Release/lib/
           
           # 创建 app-webview 目录结构
-          New-Item -Path build/windows/x64/runner/Release/data/app-webview/dist -ItemType Directory -Force
+          #New-Item -Path build/windows/x64/runner/Release/data/app-webview/dist -ItemType Directory -Force
           
           # 拷贝 Vue 应用构建产物到 Release 目录
-          Copy-Item -Recurse app-webview/dist/* build/windows/x64/runner/Release/data/app-webview/dist/
+          #Copy-Item -Recurse app-webview/dist/* build/windows/x64/runner/Release/data/app-webview/dist/
 
       # 上传构建产物
       - name: Upload Windows build artifact
