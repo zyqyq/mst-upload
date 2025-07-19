@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:webview_windows/webview_windows.dart' as webview_windows;
 import 'transfer_page.dart';
 import 'history_page.dart';
 import 'settings_page.dart';
@@ -12,6 +13,9 @@ import 'package:liquid_progress_indicator_v2/liquid_progress_indicator.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  if (Platform.isWindows) {
+    await webview_windows.WebviewController().initialize();
+  }
   await windowManager.ensureInitialized();
 
   WindowOptions windowOptions = const WindowOptions(
