@@ -78,22 +78,59 @@ class WebServerLauncher {
       _isRunning = false;
 
       try {
-        // 更安全地关闭进程
-        final killResult = await _serverProcess?.kill();
-        // 如果进程未正确终止，强制终止
-        if (killResult != true) {
-          try {
-            // 在非Windows系统上使用SIGKILL信号
-            if (!Platform.isWindows) {
-              await Process.run('kill', ['-9', '${_serverProcess!.pid}']);
+        // 在Windows系统上首先尝试优雅关闭
+        if (Platform.isWindows) {
+          // 发送终止信号
+          _serverProcess?.kill();
+
+          // 等待进程终止，设置超时
+          bool processExited = false;
+          int timeoutMs = 3000; // 3秒超时
+          int checkIntervalMs = 100;
+          int elapsedMs = 0;
+
+          while (!processExited && elapsedMs < timeoutMs) {
+            await Future.delayed(Duration(milliseconds: checkIntervalMs));
+            elapsedMs += checkIntervalMs;
+
+            try {
+              // 检查进程是否还在运行
+              final result = await Process.run('tasklist',
+                  ['/FI', 'PID eq ${_serverProcess!.pid}', '/FO', 'CSV']);
+              processExited =
+                  !result.stdout.toString().contains('${_serverProcess!.pid}');
+            } catch (e) {
+              // 如果检查失败，假设进程已退出
+              processExited = true;
             }
-          } catch (e) {
-            print('强制终止进程失败: $e');
+          }
+
+          // 如果进程还没有退出，强制终止
+          if (!processExited) {
+            try {
+              await Process.run(
+                  'taskkill', ['/F', '/PID', '${_serverProcess!.pid}']);
+              print('强制终止Web服务器进程: ${_serverProcess!.pid}');
+            } catch (e) {
+              print('强制终止进程失败: $e');
+            }
+          }
+        } else {
+          // 非Windows系统
+          final killResult = await _serverProcess?.kill();
+          if (killResult != true) {
+            try {
+              await Process.run('kill', ['-9', '${_serverProcess!.pid}']);
+            } catch (e) {
+              print('强制终止进程失败: $e');
+            }
           }
         }
       } catch (e) {
         print('终止进程出错: $e');
       } finally {
+        // 清理监听器和资源
+        // 注意：不能直接取消已经建立的监听器，这里只是确保引用被清理
         _serverProcess = null;
       }
     }

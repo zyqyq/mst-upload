@@ -68,7 +68,9 @@ class _MyHomePageState extends State<MyHomePage> {
           onTogglePause: _handleTogglePause,
         ),
         DemoPage(
-          key: UniqueKey(), // 新增: 强制每次重建 DemoPage 实例
+          key: _selectedIndex == 1
+              ? const ValueKey('demo_page')
+              : null, // 修改: 使用固定key而不是UniqueKey
           onEnter: _onDemoEnter,
           onExit: _onDemoExit,
         ),
@@ -87,15 +89,21 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   void _onDemoEnter() async {
-    setState(() {
-      _navWidthRatio = _demoNavWidthRatio;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted)
+        setState(() {
+          _navWidthRatio = _demoNavWidthRatio;
+        });
     });
     await windowManager.setSize(_demoWindowSize);
   }
 
   void _onDemoExit() async {
-    setState(() {
-      _navWidthRatio = _defaultNavWidthRatio;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted)
+        setState(() {
+          _navWidthRatio = _defaultNavWidthRatio;
+        });
     });
     await windowManager.setSize(_defaultWindowSize);
   }
