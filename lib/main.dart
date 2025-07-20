@@ -64,7 +64,7 @@ class _MyHomePageState extends State<MyHomePage> {
   final double _defaultNavWidthRatio = 0.25;
   final double _demoNavWidthRatio = 0.125;
   final Size _defaultWindowSize = const Size(900, 600);
-  final Size _demoWindowSize = const Size(1350, 900);
+  final Size _demoWindowSize = const Size(1200, 700);
 
   List<Widget> get _pages => [
         TransferPage(

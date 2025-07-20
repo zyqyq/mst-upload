@@ -80,7 +80,7 @@ class _DemoPageState extends State<DemoPage> {
         _controller.text = '';
       } else {
         _controller.text =
-            '/Users/zyqyq/Program/数据集/L1B/202408/20240801/OQZQB_MSTR01_PSPP_L1B_30M_20240801110000_V01.00_M.TXT';
+            'C:\\Users\\888\\Desktop\\OQZQB_MSTR01_PSPP_L1B_30M_20240404000000_V01.00_ST.TXT';
       }
       // 预置路径后自动解析
       _parsedInfo = _parseFileName(_controller.text.split('/').last);
@@ -178,6 +178,10 @@ class _DemoPageState extends State<DemoPage> {
         // 其他平台使用webview_flutter
         _webViewController = WebViewController()
           ..setJavaScriptMode(JavaScriptMode.unrestricted)
+          ..setBackgroundColor(Colors.white)
+          ..enableZoom(false)
+          ..setUserAgent(
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
           ..setNavigationDelegate(
             NavigationDelegate(
               onPageFinished: (url) {
@@ -191,6 +195,8 @@ class _DemoPageState extends State<DemoPage> {
                         "window.app && window.app.setFilepath('${_pendingRelativePath!}')");
                     _pendingRelativePath = null;
                   }
+                  // 页面加载完成后立即执行清晰度优化
+                  _injectClarityOptimization();
                 }
               },
               onPageStarted: (url) {
@@ -226,8 +232,11 @@ class _DemoPageState extends State<DemoPage> {
   Future<void> _initializeWindowsWebView() async {
     try {
       await _windowsWebViewController!.initialize();
-      await _windowsWebViewController!.setBackgroundColor(Colors.transparent);
-      // 设置其他WebView选项
+      await _windowsWebViewController!.setBackgroundColor(Colors.white);
+
+      // 设置WebView的额外选项以优化渲染质量
+      await _windowsWebViewController!.setUserAgent(
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
 
       // 注册页面加载完成的回调
       _windowsWebViewController!.loadingState.listen((event) {
@@ -241,6 +250,8 @@ class _DemoPageState extends State<DemoPage> {
                 "window.app && window.app.setFilepath('${_pendingRelativePath!}')");
             _pendingRelativePath = null;
           }
+          // 页面加载完成后注入清晰度优化
+          _injectWindowsClarityOptimization();
         }
       });
 
@@ -255,6 +266,100 @@ class _DemoPageState extends State<DemoPage> {
       }
     } catch (e) {
       print('Windows WebView初始化错误: $e');
+    }
+  }
+
+  // 为Windows WebView注入清晰度优化
+  void _injectWindowsClarityOptimization() {
+    if (_windowsWebViewController != null) {
+      _windowsWebViewController!.executeScript('''
+        // 设置高DPI支持
+        document.body.style.zoom = '1.0';
+        
+        // 强制设置设备像素比为系统默认值
+        Object.defineProperty(window, 'devicePixelRatio', {
+          get: function() { return window.screen.deviceXDPI / window.screen.logicalXDPI; }
+        });
+        
+        // 优化图像渲染
+        document.body.style.imageRendering = 'crisp-edges';
+        document.body.style.webkitImageRendering = 'crisp-edges';
+        
+        // 优化字体渲染
+        document.body.style.webkitFontSmoothing = 'antialiased';
+        document.body.style.mozOsxFontSmoothing = 'grayscale';
+        document.body.style.fontSmooth = 'always';
+        document.body.style.textRendering = 'optimizeLegibility';
+        
+        // 优化Canvas和SVG渲染
+        var style = document.createElement('style');
+        style.textContent = \`
+          * {
+            image-rendering: -webkit-optimize-contrast !important;
+            image-rendering: crisp-edges !important;
+          }
+          canvas {
+            image-rendering: -webkit-optimize-contrast !important;
+            image-rendering: crisp-edges !important;
+          }
+          svg {
+            shape-rendering: crispEdges !important;
+          }
+        \`;
+        document.head.appendChild(style);
+        
+        // 强制重新渲染
+        document.body.style.display = 'none';
+        document.body.offsetHeight;
+        document.body.style.display = '';
+      ''');
+    }
+  }
+
+  // 注入清晰度优化JavaScript
+  void _injectClarityOptimization() {
+    if (_webViewController != null) {
+      _webViewController!.runJavaScript('''
+        // 设置高DPI支持
+        document.body.style.zoom = '1.0';
+        
+        // 强制设置设备像素比为系统默认值
+        Object.defineProperty(window, 'devicePixelRatio', {
+          get: function() { return window.screen.deviceXDPI / window.screen.logicalXDPI; }
+        });
+        
+        // 优化图像渲染
+        document.body.style.imageRendering = 'crisp-edges';
+        document.body.style.webkitImageRendering = 'crisp-edges';
+        
+        // 优化字体渲染
+        document.body.style.webkitFontSmoothing = 'antialiased';
+        document.body.style.mozOsxFontSmoothing = 'grayscale';
+        document.body.style.fontSmooth = 'always';
+        document.body.style.textRendering = 'optimizeLegibility';
+        
+        // 优化Canvas和SVG渲染
+        var style = document.createElement('style');
+        style.textContent = \`
+          * {
+            image-rendering: -webkit-optimize-contrast !important;
+            image-rendering: crisp-edges !important;
+          }
+          canvas {
+            image-rendering: -webkit-optimize-contrast !important;
+            image-rendering: crisp-edges !important;
+          }
+          svg {
+            shape-rendering: crispEdges !important;
+          }
+        \`;
+        document.head.appendChild(style);
+        
+        // 强制重新渲染
+        document.body.style.display = 'none';
+        document.body.offsetHeight;
+        document.body.style.display = '';
+      ''');
     }
   }
 
@@ -347,6 +452,23 @@ class _DemoPageState extends State<DemoPage> {
             console.error('window.app.setFilepath 不可用');
           }
         ''');
+        // 重新注入清晰度优化以确保新内容也清晰
+        _injectClarityOptimization();
+      }
+
+      if (Platform.isWindows &&
+          _windowsWebViewController != null &&
+          _isWebViewInitialized &&
+          mounted) {
+        _windowsWebViewController!.executeScript('''
+          if (window.app && typeof window.app.setFilepath === "function") {
+            window.app.setFilepath('$relativePath');
+          } else {
+            console.error('window.app.setFilepath 不可用');
+          }
+        ''');
+        // 重新注入清晰度优化以确保新内容也清晰
+        _injectWindowsClarityOptimization();
       }
     } catch (e) {
       print('文件拷贝失败: $e');
@@ -484,6 +606,23 @@ class _DemoPageState extends State<DemoPage> {
               console.error('window.app.setFilepath 不可用');
             }
           ''');
+          // 重新注入清晰度优化以确保处理后的内容也清晰
+          _injectClarityOptimization();
+        }
+
+        if (Platform.isWindows &&
+            _windowsWebViewController != null &&
+            _isWebViewInitialized &&
+            mounted) {
+          _windowsWebViewController!.executeScript('''
+            if (window.app && typeof window.app.setFilepath === "function") {
+              window.app.setFilepath('$relativePath');
+            } else {
+              console.error('window.app.setFilepath 不可用');
+            }
+          ''');
+          // 重新注入清晰度优化以确保处理后的内容也清晰
+          _injectWindowsClarityOptimization();
         }
       }
     } catch (e) {
@@ -577,33 +716,53 @@ class _DemoPageState extends State<DemoPage> {
                   padding: const EdgeInsets.all(8.0),
                   child: Stack(
                     children: [
-                      Builder(
-                        builder: (context) {
-                          try {
-                            if (Platform.isWindows) {
-                              // Windows平台使用webview_windows
-                              if (_windowsWebViewController != null) {
-                                return webview_windows.Webview(
-                                    _windowsWebViewController!);
-                              }
-                            } else {
-                              // 其他平台使用webview_flutter
-                              if (_webViewController != null) {
-                                return WebViewWidget(
-                                  controller: _webViewController!,
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          width: double.infinity,
+                          height: double.infinity,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            border: Border.all(
+                              color: Colors.grey.shade300,
+                              width: 1,
+                            ),
+                          ),
+                          child: Builder(
+                            builder: (context) {
+                              try {
+                                if (Platform.isWindows) {
+                                  // Windows平台使用webview_windows
+                                  if (_windowsWebViewController != null) {
+                                    return Transform.scale(
+                                      scale: 1.0,
+                                      child: webview_windows.Webview(
+                                          _windowsWebViewController!),
+                                    );
+                                  }
+                                } else {
+                                  // 其他平台使用webview_flutter
+                                  if (_webViewController != null) {
+                                    return Transform.scale(
+                                      scale: 1.0,
+                                      child: WebViewWidget(
+                                        controller: _webViewController!,
+                                      ),
+                                    );
+                                  }
+                                }
+                                return Center(
+                                  child: CircularProgressIndicator(),
+                                );
+                              } catch (e) {
+                                print('WebView小部件错误: $e');
+                                return Center(
+                                  child: Text('WebView加载失败，请重试'),
                                 );
                               }
-                            }
-                            return Center(
-                              child: CircularProgressIndicator(),
-                            );
-                          } catch (e) {
-                            print('WebView小部件错误: $e');
-                            return Center(
-                              child: Text('WebView加载失败，请重试'),
-                            );
-                          }
-                        },
+                            },
+                          ),
+                        ),
                       ),
                       if (_isProcessing)
                         Container(
